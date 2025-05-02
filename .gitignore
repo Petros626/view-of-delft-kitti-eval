@@ -134,3 +134,9 @@ dmypy.json
 
 .DS_Store
 /docs/.DS_Store
+
+# Label files
+bev_val_*.txt
+*.txt
+*.json
+*.pkl
