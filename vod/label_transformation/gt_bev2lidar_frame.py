@@ -175,7 +175,7 @@ if __name__ == "__main__":
                 print(f"  {key}: {value}")
             print("\n")
 
-            save_transf_lidar_labels("bev_to_lidar_label", lidar_idx, [lidar_label])
+            save_transf_lidar_labels("kitti_gt_annos/gt_bev_to_lidar_labels", lidar_idx, [lidar_label])
     else:
         import glob
         from progress.bar import IncrementalBar
@@ -193,7 +193,8 @@ if __name__ == "__main__":
         converter = BEVtoLiDARConverter()
 
         bev_label_files = glob.glob(os.path.join(bev_label_dir, "*.txt"))
-        bar = IncrementalBar('Processing', max=len(bev_label_files), suffix='%(percent).1f%% - Estimated time: %(eta)ds')
+        bar = IncrementalBar('Processing', max=len(bev_label_files), 
+                             suffix='%(percent).1f%% - Estimated time: %(eta)ds')
     
         for bev_label_file in bev_label_files:
             bev_labels = []
@@ -217,4 +218,5 @@ if __name__ == "__main__":
 bar.finish()
 
 
+# TODO: test if offset is really needed or hurts IoU during evaluation
                                                       

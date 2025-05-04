@@ -131,7 +131,7 @@ if __name__ == "__main__":
     if single_file_mode:
         test_label_path = "gt_bev_to_lidar_labels/007439.txt"
         lidar_idx = Path(test_label_path).stem
-        output_dir = "lidar_to_camera_labels"
+        output_dir = "kitti_gt_annos/gt_lidar_to_camera_labels"
 
         try:
             # Get calibration data for this frame
@@ -173,7 +173,8 @@ if __name__ == "__main__":
             exit(1)
         
         lidar_label_files = glob.glob(os.path.join(lidar_label_dir, "*.txt"))
-        bar = IncrementalBar('Processing', max=len(lidar_label_files), suffix='%(percent).1f%% - Estimated time: %(eta)ds')
+        bar = IncrementalBar('Processing', max=len(lidar_label_files), 
+                             suffix='%(percent).1f%% - Estimated time: %(eta)ds')
 
         for lidar_label_file in lidar_label_files:
             lidar_idx = Path(lidar_label_file).stem
