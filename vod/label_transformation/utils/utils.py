@@ -123,6 +123,19 @@ def normalize_angle(angle, gt_angle=None):
             angle += -2*pi if angle > 0 else 2*pi
     return angle
 
+def normalize_angle_pred(angle):
+    """Normalize angle to [-pi/4, 3pi/4] range."""
+    # Option 1: TODO test it
+    #angle = (angle + pi/4) % (2 * pi) - pi/4
+    #if angle < -pi/4:
+    #    angle += 2*pi
+    #return angle
+    while angle > 3*pi/4:
+        angle -= pi
+    while angle < -pi/4:
+        angle += pi
+    return angle
+
 
 def bev_to_pixel_coords(norm_coords, image_width, image_height):
     """Convert normalized BEV coordinates to pixel coordinates."""
@@ -142,6 +155,17 @@ def pixel_to_world_coords(pixel_coords, image_width, image_height, cell_size):
         x = (image_height - py) * cell_size
         world_points.append([x, y])
     return np.array(world_points)
+
+
+def pixel_to_world_coords_pred(center_px, dim_px, image_width, image_height, cell_size):
+    """Convert YOLO prediction format from pixel to world coordinates."""
+    y = -(center_px[0] - image_width / 2) * cell_size
+    x = (image_height - center_px[1]) * cell_size
+    
+    length_meters = dim_px[0] * cell_size  # width in YOLO = length in KITTI
+    width_meters = dim_px[1] * cell_size   # height in YOLO = width in KITTI
+    
+    return (x, y), (length_meters, width_meters)
 
 
 def cart_to_hom(pts):
