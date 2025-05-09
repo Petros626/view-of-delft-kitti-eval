@@ -110,8 +110,8 @@ class LiDARtoCameraConverter:
             'occluded': int(lidar_label['occluded']),
             'alpha': lidar_label['alpha'],
             'bbox_pre_height': lidar_label['bbox_pre_height'],
-            'dimensions': [h, w, l],  # Keep h, w, l order
-            'location': [x_rect, y_rect, z_rect],
+            'dimensions': [h, w, l],  # h, w, l
+            'location': [x_rect, y_rect, z_rect], # x, y, z
             'rotation_y': rotation_y,
             'score': float(lidar_label['score'])
         }

@@ -1,5 +1,4 @@
-import numpy as np
-from math import atan2, pi
+from math import pi
 from pathlib import Path
 from vod.label_transformation.utils.utils import normalize_angle_pred, pixel_to_world_coords_pred, save_transf_lidar_labels
 
@@ -31,10 +30,20 @@ class BEVPredtoLiDARConverter:
             self.image_height,
             self.cell_size
         )
+ 
+        # Ensure that rotation is in range. Since the zero angle in the BEV is 
+        # along the image x-axis (right) and in the LiDAR along the x-axis (front), 
+        # you must shift the angle by +90° (i.e. +π/2) to align the reference axes.
+        r = normalize_angle_pred(pred['rotation'])
+        r = r + pi/2
 
         # Default height values based on class
-        #default_heights = {1: 1.5, 2: 1.7, 3: 1.7}  # Car: 1.5m, Ped/Cyc: 1.7m
-        #height = default_heights.get(pred['class_id'], 1.5)
+        default_heights = {1: 1.53, 2: 1.76, 3: 1.74}  # Car: 1.53m, Ped: 1.76m, Cyc: 1.74m
+        height = default_heights.get(pred['class_id'])
+
+        # NOT NEEDED, bc xyz_lidar[:, 2] -= h.reshape(-1) / 2 in
+        # boxes3d_lidar_to_kitti_camera_pred() handles it
+        #z = -height / 2 
 
         # Map class_id to type
         class_map = {1: "Car", 2: "Pedestrian", 3: "Cyclist"}
@@ -47,9 +56,9 @@ class BEVPredtoLiDARConverter:
             "occluded": int(0), # int
             "alpha": float(0.0), # float
             "bbox_pre_height": [0.0], # float
-            "dimensions": [0.0, dimensions[1], dimensions[0]],  # h, w, l
+            "dimensions": [height, dimensions[1], dimensions[0]],  # h, w, l
             "location": [center[0], center[1], 0.0], # x, y, z
-            "rotation_z": normalize_angle_pred(pred['rotation']), # rad
+            "rotation_z": (r), # rad
             "score": float(pred['confidence'])
         }
 
@@ -84,7 +93,7 @@ if __name__ == "__main__":
         save_transf_lidar_labels(output_dir, lidar_idx, lidar_labels)
 
     else:
-        pred_dir = "predictions/all_bev_preds/val_trt_fp32/labels"
+        pred_dir = "predictions/all_bev_preds_minAreaRect()/val_trt_fp32/labels"
         output_dir = "predictions/pred_bev_to_lidar_fp32"
 
         if not os.path.exists(pred_dir):
@@ -111,7 +120,6 @@ if __name__ == "__main__":
 
         bar.finish()
 
-# TODO: test normalize_angle_pred with different conventions. Could increase accuracy
 
 # Reverse engineering the height transformation
 # height = (pixel_value * (Z_MAX_HEIGHT - Z_MIN_HEIGHT) / 255.0) + Z_MIN_HEIGHT - OFFSET_LIDAR

@@ -48,7 +48,8 @@ class BEVtoLiDARConverter:
         center =  np.mean(world_coords, axis=0)
         edge1 = world_coords[1] - world_coords[0]
         edge2 = world_coords[2] - world_coords[1]
-        rotation_z = atan2(edge1[1], edge1[0])
+        # Calculate the rotation directly from the world coordinates of the bounding box
+        rotation_z = atan2(edge1[1], edge1[0]) # y, x
         rotation_z = normalize_angle(rotation_z, gt_rotation)
 
         length = np.linalg.norm(edge1)

@@ -53,6 +53,7 @@ class PredLiDARtoCameraConverter:
         """
         pts_lidar_hom = cart_to_hom(pts_lidar)
         pts_rect = np.dot(pts_lidar_hom, np.dot(self.V2C.T, self.R0.T))
+
         return pts_rect
     
 
@@ -70,7 +71,10 @@ class PredLiDARtoCameraConverter:
 
         xyz_lidar[:, 2] -= h.reshape(-1) / 2
         xyz_cam = self.lidar_to_rect(xyz_lidar)
-        r = -r - np.pi / 2
+        # Turn the rotation direction from CW (LiDAR) to CCW (Camera). 
+        # Shift the reference angle, as the y-axis is vertical in the 
+        # camera frame and the z-axis in the LiDAR frame.
+        r = -r - np.pi / 2 
 
         return np.concatenate([xyz_cam, h, w, l, r], axis=-1)
     
@@ -90,7 +94,6 @@ class PredLiDARtoCameraConverter:
         }
 
 
-
     def convert_label(self, lidar_label):
         """Convert LiDAR label to camera frame using OpenPCDet method"""
         # Extract box parameters
@@ -99,7 +102,6 @@ class PredLiDARtoCameraConverter:
         r = lidar_label['rotation_z']
         obj_type = lidar_label['type']
 
-    
         #if obj_type in ['Car', 'Cyclist'] and w > l:
         #    w, l = l, w
  
@@ -110,22 +112,21 @@ class PredLiDARtoCameraConverter:
         box_camera = self.boxes3d_lidar_to_kitti_camera_pred(box_lidar)
         x_rect, y_rect, z_rect, h, w, l, rotation_y = box_camera[0]
 
-
         return {
             'type': lidar_label['type'],
             'truncated': float(lidar_label['truncated']),
             'occluded': int(lidar_label['occluded']),
             'alpha': lidar_label['alpha'],
             'bbox_pre_height': lidar_label['bbox_pre_height'],
-            'dimensions': [h, w, l],  # Keep h, w, l order
-            'location': [x_rect, y_rect, z_rect],
+            'dimensions': [h, w, l],  # h, w, l 
+            'location': [x_rect, y_rect, z_rect], # x, y, z
             'rotation_y': (rotation_y),
             'score': float(lidar_label['score'])
         }
     
 if __name__ == "__main__":
 
-    single_file_mode = True
+    single_file_mode = False
 
     # Initialize converter
     converter = PredLiDARtoCameraConverter()
@@ -135,7 +136,7 @@ if __name__ == "__main__":
     converter.load_dataset(dataset_path)
 
     if single_file_mode:
-        pred_file = "predictions/pred_bev_to_lidar_fp32/000040.txt"
+        pred_file = "predictions/pred_bev_to_lidar_fp32/000001.txt"
         lidar_idx = Path(pred_file).stem
         output_dir = "predictions/pred_lidar_to_camera_fp32"
 
@@ -170,6 +171,30 @@ if __name__ == "__main__":
         import glob
         from progress.bar import IncrementalBar
 
-        pass
+        lidar_label_dir = "predictions/pred_bev_to_lidar_fp32"
+        output_dir = "predictions/pred_lidar_to_camera_fp32"
 
- # TODO: test if change of h, l is required
+        if not os.path.exists(lidar_label_dir):
+            print(f"Directoy '{lidar_label_dir}' not found.")
+            exit(1)
+        
+        lidar_label_files = glob.glob(os.path.join(lidar_label_dir, "*.txt"))
+        bar = IncrementalBar('Processing', max=len(lidar_label_files), 
+                             suffix='%(percent).1f%% - Estimated time: %(eta)ds')
+
+        for lidar_label_file in lidar_label_files:
+            lidar_idx = Path(lidar_label_file).stem
+            converter.get_calib_for_frame(lidar_idx)
+
+            camera_labels = []
+            with open(lidar_label_file, 'r') as f:
+                for line in f:
+                    lidar_label = converter.parse_lidar_label(line)
+                    camera_label = converter.convert_label(lidar_label)
+                    camera_labels.append(camera_label)
+
+                save_transf_camera_labels(output_dir, lidar_idx, camera_labels)
+
+            bar.next()
+            
+    bar.finish()

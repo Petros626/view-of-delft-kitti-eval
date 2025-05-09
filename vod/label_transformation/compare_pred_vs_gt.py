@@ -78,7 +78,7 @@ def compare_labels(gt_file, pred_file, distance_threshold=2.0):
                 print("-" * 50)
 
 if __name__ == "__main__":
-    frame_id = "000040"
+    frame_id = "000001"
     gt_file = f"kitti_gt_annos/gt_lidar_to_camera_labels/{frame_id}.txt"
     pred_file = f"predictions/pred_lidar_to_camera_fp32/{frame_id}.txt"
     
