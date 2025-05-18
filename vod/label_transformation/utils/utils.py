@@ -1,7 +1,6 @@
 import numpy as np
 from math import pi
-import os, copy
-
+import os
 
 
 def normalize(num, lower=0, upper=360, b=False):
@@ -123,17 +122,13 @@ def normalize_angle(angle, gt_angle=None):
             angle += -2*pi if angle > 0 else 2*pi
     return angle
 
+
 def normalize_angle_pred(angle):
-    """Normalize angle to [-pi/4, 3pi/4] range."""
-    # Option 1: TODO test it
-    #angle = (angle + pi/4) % (2 * pi) - pi/4
-    #if angle < -pi/4:
-    #    angle += 2*pi
-    #return angle
-    while angle > 3*pi/4:
-        angle -= pi
-    while angle < -pi/4:
-        angle += pi
+    """Normalize angle to [0, pi/2] range."""
+    while angle > pi/2:
+        angle -= pi/2
+    while angle < 0:
+        angle += pi/2
     return angle
 
 
@@ -151,16 +146,16 @@ def pixel_to_world_coords(pixel_coords, image_width, image_height, cell_size):
     """Convert pixel coordinates to world coordinates (source was LiDAR frame)."""
     world_points = []
     for px, py in pixel_coords:
-        y = -(px - image_width / 2) * cell_size
-        x = (image_height - py) * cell_size
+        y = -(px - image_width / 2) * cell_size # image x -> lidar y
+        x = (image_height - py) * cell_size # image y -> lidar x
         world_points.append([x, y])
     return np.array(world_points)
 
 
 def pixel_to_world_coords_pred(center_px, dim_px, image_width, image_height, cell_size):
     """Convert YOLO prediction format from pixel to world coordinates."""
-    y = -(center_px[0] - image_width / 2) * cell_size
-    x = (image_height - center_px[1]) * cell_size
+    y = -(center_px[0] - image_width / 2) * cell_size # image x -> lidar y
+    x = (image_height - center_px[1]) * cell_size # image y -> lidar x
     
     length_meters = dim_px[0] * cell_size  # width in YOLO = length in KITTI
     width_meters = dim_px[1] * cell_size   # height in YOLO = width in KITTI
@@ -186,7 +181,7 @@ def extract_gt_for_lidar_idx(gt_data, lidar_idx):
             return [
                 {
                     'name': entry['annos']['name'][i],
-                    'box': entry['annos']['gt_boxes_lidar'][i][:7],
+                    '3Dbox': entry['annos']['gt_boxes_lidar'][i][:7],
                     'alpha': entry['annos']['alpha'][i],
                     'score': entry['annos']['score'][i],
                     'original_index': i
@@ -211,7 +206,8 @@ def save_transf_lidar_labels(output_dir, lidar_idx, lidar_labels):
     with open(output_file, "w") as f:
         for label in lidar_labels:
             line = f"{label['type']} {label['truncated']} {label['occluded']} {label['alpha']} " \
-                   f"{label['bbox_pre_height'][0]} {label['dimensions'][0]} {label['dimensions'][1]} {label['dimensions'][2]} " \
+                   f"{label['bbox'][0]} {label['bbox'][1]} {label['bbox'][2]} {label['bbox'][3]} " \
+                   f"{label['dimensions'][0]} {label['dimensions'][1]} {label['dimensions'][2]} " \
                    f"{label['location'][0]} {label['location'][1]} {label['location'][2]} {label['rotation_z']} {label['score']}\n"
             f.write(line)
     #print(f"Transformed LiDAR labels saved to {output_file}")
@@ -232,7 +228,8 @@ def save_transf_camera_labels(output_dir, lidar_idx, camera_labels):
     with open(output_file, "w") as f:
         for label in camera_labels:
             line = f"{label['type']} {label['truncated']} {label['occluded']} {label['alpha']} " \
-                   f"{label['bbox_pre_height']} {label['dimensions'][0]:.2f} {label['dimensions'][1]:.2f} {label['dimensions'][2]:.2f} " \
+                   f"{label['bbox'][0]} {label['bbox'][1]} {label['bbox'][2]} {label['bbox'][3]} " \
+                   f"{label['dimensions'][0]:.2f} {label['dimensions'][1]:.2f} {label['dimensions'][2]:.2f} " \
                    f"{label['location'][0]:.2f} {label['location'][1]:.2f} {label['location'][2]:.2f} {label['rotation_y']:.2f} {label['score']}\n"
             f.write(line)
     #print(f"Transformed Camera labels saved to {output_file}")
