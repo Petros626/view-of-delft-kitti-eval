@@ -67,16 +67,16 @@ class PredLiDARtoCameraConverter:
         boxes3d_lidar_copy = copy.deepcopy(boxes3d_lidar)
         xyz_lidar = boxes3d_lidar_copy[:, 0:3] 
         h, w, l = boxes3d_lidar_copy[:, 3:4], boxes3d_lidar_copy[:, 4:5], boxes3d_lidar_copy[:, 5:6]
-        r = boxes3d_lidar_copy[:, 6:7]
+        heading = boxes3d_lidar_copy[:, 6:7]
 
         xyz_lidar[:, 2] -= h.reshape(-1) / 2
         xyz_cam = self.lidar_to_rect(xyz_lidar)
         # Turn the rotation direction from CW (LiDAR) to CCW (Camera). 
         # Shift the reference angle, as the y-axis is vertical in the 
         # camera frame and the z-axis in the LiDAR frame.
-        r = -r - np.pi / 2 
+        r_y = -heading - np.pi / 2 
 
-        return np.concatenate([xyz_cam, h, w, l, r], axis=-1)
+        return np.concatenate([xyz_cam, h, w, l, r_y], axis=-1)
     
     def parse_lidar_label(self, label_line):
         """Parse a line from LiDAR label file"""
@@ -99,19 +99,16 @@ class PredLiDARtoCameraConverter:
         # Extract box parameters
         x, y, z = lidar_label['location']
         h, w, l = lidar_label['dimensions']
-        r = lidar_label['rotation_z']
-        obj_type = lidar_label['type']
-
-        #if obj_type in ['Car', 'Cyclist'] and w > l:
-        #    w, l = l, w
+        heading = lidar_label['rotation_z']
  
         # Create box array in OpenPCDet format [x,y,z,h,w,l,r]
-        box_lidar = np.array([[x, y, z, h, w, l, r]])
+        box_lidar = np.array([[x, y, z, h, w, l, heading]])
 
         # Convert using OpenPCDet method
         box_camera = self.boxes3d_lidar_to_kitti_camera_pred(box_lidar)
         x_rect, y_rect, z_rect, h, w, l, rotation_y = box_camera[0]
 
+        # Create Camera label in default KITTI format
         return {
             'type': lidar_label['type'],
             'truncated': float(lidar_label['truncated']),

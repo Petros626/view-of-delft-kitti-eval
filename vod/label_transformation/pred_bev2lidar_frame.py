@@ -20,7 +20,7 @@ class BEVPredtoLiDARConverter:
             'confidence': float(parts[6]),
         }
 
-    def convert_to_lidar_label(self, pred):
+    def convert_to_lidar_label(self, pred, regularized=False):
         """Convert YOLO BEV prediction to LiDAR label"""
         # Convert center and dimensions to world coordinates
         center, dimensions = pixel_to_world_coords_pred(
@@ -34,22 +34,28 @@ class BEVPredtoLiDARConverter:
         # Ensure that rotation is in range. Since the zero angle in the BEV is 
         # along the image x-axis (right) and in the LiDAR along the x-axis (front), 
         # you must shift the angle by +90° (i.e. +π/2) to align the reference axes.
-        r = normalize_angle_pred(pred['rotation'])
-        r = r + pi/2
-
+        #r = normalize_angle_pred(pred['rotation']) # depends on how the angle comes, regularized or raw
+        #r = r + pi/2 # do i really need this ???
+        
+        # Case 1: rotation is regularized CW, prediction angle is [0°...90°]
+        if regularized:
+            heading = pred['rotation'] - pi/2  # BEV-X → LiDAR-X
+            #heading = pred['rotation'] # unsure about it
+        # Case 2: rotation is raw CW, the biggest values were [-28°...122°], so it's from [-pi/4...3pi/4] range
+        else:
+            heading = normalize_angle_pred(pred['rotation']) # [-π/4, 3π/4] → [0, π/2]
+            heading = heading - pi/2 # Same axis adjustment like above
+            #heading = pred['rotation'] # unsure about it
+        
         # Default height values based on class
         default_heights = {1: 1.53, 2: 1.76, 3: 1.74}  # Car: 1.53m, Ped: 1.76m, Cyc: 1.74m
         height = default_heights.get(pred['class_id'])
-
-        # NOT NEEDED, bc xyz_lidar[:, 2] -= h.reshape(-1) / 2 in
-        # boxes3d_lidar_to_kitti_camera_pred() handles it
-        #z = -height / 2 
 
         # Map class_id to type
         class_map = {1: "Car", 2: "Pedestrian", 3: "Cyclist"}
         obj_type = class_map.get(pred['class_id'], "DontCare")
 
-        # Create LiDAR label
+        # Create LiDAR label in default KITTI format
         lidar_label = {
             "type": str(obj_type),
             "truncated": float(0.0), # float
@@ -58,7 +64,7 @@ class BEVPredtoLiDARConverter:
             "bbox_pre_height": [0.0], # float
             "dimensions": [height, dimensions[1], dimensions[0]],  # h, w, l
             "location": [center[0], center[1], 0.0], # x, y, z
-            "rotation_z": (r), # rad
+            "rotation_z": (heading), # rad
             "score": float(pred['confidence'])
         }
 
@@ -111,16 +117,16 @@ if __name__ == "__main__":
             with open(pred_file, 'r') as f:
                 for line in f:
                     pred = converter.parse_bev_prediction(line)
-                    lidar_label = converter.convert_to_lidar_label(pred)
+                    lidar_label = converter.convert_to_lidar_label(pred, regularized=False)
                     lidar_labels.append(lidar_label)
 
             lidar_idx = Path(pred_file).stem.split('_')[-1]
-            save_transf_lidar_labels(output_dir, lidar_idx, lidar_labels)
+            #save_transf_lidar_labels(output_dir, lidar_idx, lidar_labels)
             bar.next()
 
         bar.finish()
 
 
-# Reverse engineering the height transformation
+# Reverse engineering the height information
 # height = (pixel_value * (Z_MAX_HEIGHT - Z_MIN_HEIGHT) / 255.0) + Z_MIN_HEIGHT - OFFSET_LIDAR
 # height = (pixel_value * (1.27 - (-2.73)) / 255.0) + (-2.73) + 2.73
