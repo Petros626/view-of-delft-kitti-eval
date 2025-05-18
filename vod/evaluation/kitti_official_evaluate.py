@@ -25,18 +25,25 @@ def get_thresholds(scores: np.ndarray, num_gt,
 
         thresholds.append(score)
         current_recall += 1 / (num_sample_pts - 1.0)
-
+    # print(len(thresholds), len(scores), num_gt)
     return thresholds
 
 
 def clean_data(gt_anno, dt_anno, current_class, difficulty, roi_clean=False):  # per frame
-    valid_class_names = ['car', 'pedestrian', 'cyclist', 'van', 'person_sitting', 'truck']
-    min_instance_height = [40]
-    max_instance_occlusion = [4]
+    # Default
+    #valid_class_names = ['car', 'pedestrian', 'cyclist', 'van', 'person_sitting', 'truck']
+    # Custom
+    valid_class_names = ['car', 'pedestrian', 'cyclist']
+    #min_instance_height = [40] # default only Easy
+    min_instance_height = [40, 25, 25] # custom
+    #max_instance_occlusion = [4] # default
+    max_instance_occlusion = [0, 1, 2] # custom
+    max_instance_truncation = [0.15, 0.3, 0.5]
 
-    left = -4
-    right = +4
-    max_distance = 25
+    # Define Driving Corridor after paper BEVDetNet, if needed (probably not)
+    left = -30 # -4
+    right = 30 # +4
+    max_distance = 60 # 25
 
     dc_bboxes, ignored_gt, ignored_dt = [], [], []
     current_cls_name = valid_class_names[current_class].lower()
@@ -64,6 +71,7 @@ def clean_data(gt_anno, dt_anno, current_class, difficulty, roi_clean=False):  #
         ignore = False
 
         if ((gt_anno["occluded"][i] > max_instance_occlusion[difficulty])
+                or (gt_anno["truncated"][i] > max_instance_truncation[difficulty])
                 or (height <= min_instance_height[difficulty])):
             ignore = True
 
@@ -99,8 +107,9 @@ def clean_data(gt_anno, dt_anno, current_class, difficulty, roi_clean=False):  #
             valid_class = 1
         else:
             valid_class = -1
-
+        # (y2 - y1) + 1 from bbox
         height = abs(dt_anno["bbox"][i, 3] - dt_anno["bbox"][i, 1])
+
         if height < min_instance_height[difficulty]:
             ignored_dt.append(1)
 
@@ -187,7 +196,8 @@ def d3_box_overlap(boxes, q_boxes, criterion=-1):
     return r_inc
 
 
-@numba.jit(nopython=False)
+#@numba.jit(nopython=False) # I get an error with this
+@numba.jit(nopython=False, forceobj=True)
 def compute_statistics_jit(overlaps,
                            gt_datas,
                            dt_datas,
@@ -304,19 +314,24 @@ def compute_statistics_jit(overlaps,
         # do not consider detections falling under don't care regions as fp
         # in VoD experiments, our annoys are purely within fov and upto 50 mts in front and input pcl
         # is also bounded to that distance. So, dc_boxes are nil for VoD setup
-        if metric == 0:
+        if metric == 0: # 2D BBox
             overlaps_dt_dc = image_box_overlap(dt_bboxes, dc_bboxes, 0)
-            for i in range(dc_bboxes.shape[0]):
-                for j in range(det_size):
-                    if assigned_detection[j]:
-                        continue
-                    if ignored_det[j] == -1 or ignored_det[j] == 1:
-                        continue
-                    if ignored_threshold[j]:
-                        continue
-                    if overlaps_dt_dc[j, i] > min_overlap:
-                        assigned_detection[j] = True
-                        n_stuff += 1
+        # Why this isn't implemented: https://github.com/traveller59/kitti-object-eval-python/issues/17 ?
+        elif metric==1: # BEV
+            overlaps_dt_dc = bev_box_overlap(dt_bboxes, dc_bboxes, 0)
+        #elif metric==2: # 3D
+        #    overlaps_dt_dc = d3_box_overlap(dt_bboxes, dc_bboxes, 0)
+        for i in range(dc_bboxes.shape[0]):
+            for j in range(det_size):
+                if assigned_detection[j]:
+                    continue
+                if ignored_det[j] == -1 or ignored_det[j] == 1:
+                    continue
+                if ignored_threshold[j]:
+                    continue
+                if overlaps_dt_dc[j, i] > min_overlap:
+                    assigned_detection[j] = True
+                    n_stuff += 1
         fp -= n_stuff
 
         if compute_aos:
@@ -342,7 +357,8 @@ def get_split_parts(num, num_part):
         return [same_part] * num_part + [remain_num]
 
 
-@numba.jit(nopython=True)
+#@numba.jit(nopython=True) # I get an error with this
+@numba.jit(nopython=False, forceobj=True)
 def fused_compute_statistics(overlaps,
                              pr,
                              gt_nums,
@@ -410,13 +426,19 @@ def calculate_iou_partly(gt_annotations, dt_annotations, metric, num_parts=50):
     for num_part in split_parts:
         gt_annotations_part = gt_annotations[example_idx:example_idx + num_part]
         dt_annotations_part = dt_annotations[example_idx:example_idx + num_part]
+
+        # BBox (2D)
         if metric == 0:
             gt_boxes = np.concatenate([(a["bbox"]) for a in gt_annotations_part], 0)
             dt_boxes = np.concatenate([a["bbox"] for a in dt_annotations_part], 0)
             overlap_part = image_box_overlap(gt_boxes, dt_boxes)
+
+        # BEV (2D)
         elif metric == 1:
+            # x, y, z
             loc = np.concatenate(
                 [a["location"][:, [0, 2]] for a in gt_annotations_part], 0)
+            # l, h, w
             dims = np.concatenate(
                 [a["dimensions"][:, [0, 2]] for a in gt_annotations_part], 0)
             rots = np.concatenate([(a["rotation_y"]) for a in gt_annotations_part], 0)
@@ -431,17 +453,21 @@ def calculate_iou_partly(gt_annotations, dt_annotations, metric, num_parts=50):
                 [loc, dims, rots[..., np.newaxis]], axis=1)
             overlap_part = bev_box_overlap(gt_boxes, dt_boxes).astype(
                 np.float64)
+            
+        # 3D-BBox (3D)
         elif metric == 2:
             loc = np.concatenate([a["location"] for a in gt_annotations_part], 0)
             dims = np.concatenate([a["dimensions"] for a in gt_annotations_part], 0)
             rots = np.concatenate([(a["rotation_y"]) for a in gt_annotations_part], 0)
             gt_boxes = np.concatenate(
                 [loc, dims, rots[..., np.newaxis]], axis=1)
+ 
             loc = np.concatenate([a["location"] for a in dt_annotations_part], 0)
             dims = np.concatenate([a["dimensions"] for a in dt_annotations_part], 0)
             rots = np.concatenate([a["rotation_y"] for a in dt_annotations_part], 0)
             dt_boxes = np.concatenate(
                 [loc, dims, rots[..., np.newaxis]], axis=1)
+       
             overlap_part = d3_box_overlap(gt_boxes, dt_boxes).astype(
                 np.float64)
         else:
@@ -490,12 +516,14 @@ def _prepare_data(gt_annotations, dt_annotations, current_class, difficulty, cus
         total_dc_num.append(dc_bboxes.shape[0])
         dontcares.append(dc_bboxes)
         total_num_valid_gt += num_valid_gt
+
         gt_datas = np.concatenate(
             [gt_annotations[i]["bbox"], gt_annotations[i]["alpha"][..., np.newaxis]], 1)
+        
         dt_datas = np.concatenate([
             dt_annotations[i]["bbox"], dt_annotations[i]["alpha"][..., np.newaxis],
-            dt_annotations[i]["score"][..., np.newaxis]
-        ], 1)
+            dt_annotations[i]["score"][..., np.newaxis]], 1)
+
         gt_datas_list.append(gt_datas)
         dt_datas_list.append(dt_datas)
     total_dc_num = np.stack(total_dc_num, axis=0)
@@ -533,7 +561,7 @@ def eval_class(gt_annotations,
     rets = calculate_iou_partly(dt_annotations, gt_annotations, metric, num_parts)
     overlaps, parted_overlaps, total_dt_num, total_gt_num = rets
 
-    N_SAMPLE_PTS = 41  # what is this number
+    N_SAMPLE_PTS = 41  # points for pr-curve calculation
     num_min_overlap = len(min_overlaps)  # 2
     num_class = len(current_classes)
     num_difficulty = len(difficulties)
@@ -612,17 +640,17 @@ def eval_class(gt_annotations,
 
 def get_m_ap(prec):
     sums = 0
-    for i in range(0, prec.shape[-1], 4):
+    for i in range(0, prec.shape[-1], 4): # step size 4
         sums = sums + prec[..., i]
-    return sums / 11 * 100
+    return sums / 11 * 100 # 11 recall points
 
 
 def get_m_ap_r40(prec):
     sums = 0
 
-    for i in range(1, prec.shape[-1]):
+    for i in range(1, prec.shape[-1]): # step size 1
         sums = sums + prec[..., i]
-    return sums / 40 * 100
+    return sums / 40 * 100 # 40 recall points
 
 
 def do_eval(gt_annotations,
@@ -632,18 +660,20 @@ def do_eval(gt_annotations,
             compute_aos=False,
             pr_detail_dict=None,
             custom_method=0):
+
     if custom_method == 0:  # normal metric
-        difficulties = [0]
+        difficulties = [0, 1, 2] # Easy, Mod., Hard
 
     if custom_method == 1:  # range-wise metric
         difficulties = [0, 1, 2, 3, 4, 5, 6, 7, 8]
 
-    if custom_method == 2:
+    if custom_method == 2: # moving vs not moving
         difficulties = [0, 1]
 
-    if custom_method == 3:
-        difficulties = [0]
+    if custom_method == 3: # ROI (Driving Corridor)
+        difficulties = [0] 
 
+    # 2D
     ret = eval_class(gt_annotations, dt_annotations, current_classes, difficulties, 0,
                      min_overlaps, compute_aos, custom_method=custom_method)
 
@@ -661,16 +691,16 @@ def do_eval(gt_annotations,
 
         if pr_detail_dict is not None:
             pr_detail_dict['aos'] = ret['orientation']
-
+    # BEV
     ret = eval_class(gt_annotations, dt_annotations, current_classes, difficulties, 1,
                      min_overlaps, custom_method=custom_method)
-    print("mAP bev BBox finished")
+    print("mAP BEV BBox finished")
     mAP_bev = get_m_ap(ret["precision"])
     mAP_bev_R40 = get_m_ap_r40(ret["precision"])
 
     if pr_detail_dict is not None:
         pr_detail_dict['bev'] = ret['precision']
-
+    # 3D
     ret = eval_class(gt_annotations, dt_annotations, current_classes, difficulties, 2,
                      min_overlaps, custom_method=custom_method)
     print("mAP 3D BBox finished")
@@ -685,32 +715,40 @@ def get_official_eval_result(gt_annotations, dt_annotations, current_classes, pr
     if custom_method == 0:
         print("Evaluating kitti by default")
     elif custom_method == 3:
-        print("Evaluating kitti by ROI")
+        print("Evaluating kitti by ROI (Drive Corridor)")
 
     # Original OpenPCDet code
-    overlap_0_7 = np.array([[0.7, 0.5, 0.5, 0.7, 0.5, 0.7],
-                            [0.7, 0.5, 0.5, 0.7, 0.5, 0.7],
-                            [0.7, 0.5, 0.5, 0.7, 0.5, 0.7]])
+    # overlap_mod
+    overlap_0_7 = np.array([[0.7, 0.5, 0.5, 0.7, 0.5, 0.7], # image
+                            [0.7, 0.5, 0.5, 0.7, 0.5, 0.7], # bev
+                            [0.7, 0.5, 0.5, 0.7, 0.5, 0.7]]) # 3d
+    # Easy overlap_easy
     overlap_0_5 = np.array([[0.7, 0.50, 0.50, 0.7, 0.50, 0.5],  # image
                             [0.5, 0.25, 0.25, 0.5, 0.25, 0.5],  # bev
                             [0.5, 0.25, 0.25, 0.5, 0.25, 0.5]])  # 3d
     # class:  0,    1,    2,   3,   4,    5
     min_overlaps = np.stack([overlap_0_7, overlap_0_5], axis=0)  # [2, 3, 6] = [num_overlaps, metrics, classes]
-
+    # Default
+    # class_to_name = {
+    #     0: 'Car',
+    #     1: 'Pedestrian',
+    #     2: 'Cyclist',
+    #     3: 'rider',
+    #     4: 'bicycle',
+    #     5: 'bicycle_rack',
+    #     6: 'human_depiction',
+    #     7: 'moped_scooter',
+    #     8: 'motor',
+    #     9: 'ride_other',
+    #     10: 'ride_uncertain',
+    #     11: 'truck',
+    #     12: 'vehicle_other'
+    # }
+    # Custom
     class_to_name = {
         0: 'Car',
         1: 'Pedestrian',
         2: 'Cyclist',
-        3: 'rider',
-        4: 'bicycle',
-        5: 'bicycle_rack',
-        6: 'human_depiction',
-        7: 'moped_scooter',
-        8: 'motor',
-        9: 'ride_other',
-        10: 'ride_uncertain',
-        11: 'truck',
-        12: 'vehicle_other'
     }
     name_to_class = {v: n for n, v in class_to_name.items()}
     if not isinstance(current_classes, (list, tuple)):
@@ -730,7 +768,6 @@ def get_official_eval_result(gt_annotations, dt_annotations, current_classes, pr
         result_name = 'kitti_roi'
 
     # check whether alpha is valid
-
     compute_aos = True
     for anno in dt_annotations:
         if anno['alpha'].shape[0] != 0:
@@ -746,7 +783,10 @@ def get_official_eval_result(gt_annotations, dt_annotations, current_classes, pr
     for j, curcls in enumerate(current_classes):
         # mAP threshold array: [num_min_overlap, metric, class]
         # mAP result: [num_class, num_diff, num_min_overlap]
-        for i in range(1, 2):  # min_overlaps.shape[0]):
+        # evaluates only overlap_0_5
+        #for i in range(1, 2):  # min_overlaps.shape[0]):
+        # evaluates over overlap_0_5 and overlap_0_7
+        for i in range(min_overlaps.shape[0]):
             if compute_aos:
                 if i == 1:
                     ret_dict['%s_aos_all' % class_to_name[curcls]] = mAPaos[j, 0, 1]
