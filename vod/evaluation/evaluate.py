@@ -27,7 +27,6 @@ class Evaluation:
         :param score_thresh: Score threshold to use.
         :return: Results of the evaluation.
         """
-
         if current_class is None:
             current_class = [0, 1, 2]
 
@@ -37,12 +36,15 @@ class Evaluation:
 
         if score_thresh > 0:
             dt_annotations = kitti.filter_annotations_low_score(dt_annotations, score_thresh)
+            print("filter annotations with low score")
 
         gt_annotations = kitti.get_label_annotations(self.test_annotation_file, val_image_ids)
 
         evaluation_result = {}
+        # kitti
         evaluation_result.update(get_official_eval_result(gt_annotations, dt_annotations, current_class, custom_method=0))
-        evaluation_result.update(get_official_eval_result(gt_annotations, dt_annotations, current_class, custom_method=3))
+        # kitti roi
+        #evaluation_result.update(get_official_eval_result(gt_annotations, dt_annotations, current_class, custom_method=3))
 
         return evaluation_result
 
