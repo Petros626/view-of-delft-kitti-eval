@@ -65,13 +65,13 @@ class LiDARtoCameraConverter:
         boxes3d_lidar_copy = copy.deepcopy(boxes3d_lidar)
         xyz_lidar = boxes3d_lidar_copy[:, 0:3] 
         h, w, l = boxes3d_lidar_copy[:, 3:4], boxes3d_lidar_copy[:, 4:5], boxes3d_lidar_copy[:, 5:6]
-        r = boxes3d_lidar_copy[:, 6:7]
+        heading = boxes3d_lidar_copy[:, 6:7]
 
         xyz_lidar[:, 2] -= h.reshape(-1) / 2
         xyz_cam = self.lidar_to_rect(xyz_lidar)
-        r = -r - np.pi / 2
+        r_y = -heading - np.pi / 2 # # Adjust rotation (LiDAR-CW → Camera-CCW + axis correction)
 
-        return np.concatenate([xyz_cam, h, w, l, r], axis=-1)
+        return np.concatenate([xyz_cam, h, w, l, r_y], axis=-1)
 
 
     def parse_lidar_label(self, label_line):
@@ -82,11 +82,11 @@ class LiDARtoCameraConverter:
             'truncated': float(parts[1]),
             'occluded': int(parts[2]),
             'alpha': float(parts[3]),  # Convert to float
-            'bbox_pre_height': float(parts[4]),  # Convert to float
-            'dimensions': [float(parts[5]), float(parts[6]), float(parts[7])],  # h, w, l
-            'location': [float(parts[8]), float(parts[9]), float(parts[10])],   # x, y, z
-            'rotation_z': float(parts[11]),  # Convert to float
-            'score': float(parts[12])
+            'bbox': [float(parts[4]), (parts[5]), (parts[6]), (parts[7])],  # Convert to float
+            'dimensions': [float(parts[8]), float(parts[9]), float(parts[10])],  # h, w, l
+            'location': [float(parts[11]), float(parts[12]), float(parts[13])],   # x, y, z
+            'rotation_z': float(parts[14]),  # Convert to float
+            'score': float(parts[15])
         }
 
 
@@ -95,10 +95,10 @@ class LiDARtoCameraConverter:
         # Extract box parameters
         x, y, z = lidar_label['location']
         h, w, l = lidar_label['dimensions']
-        r = lidar_label['rotation_z']
+        heading = lidar_label['rotation_z']
  
-        # Create box array in OpenPCDet format [x,y,z,h,w,l,r]
-        box_lidar = np.array([[x, y, z, h, w, l, r]])
+        # Create box array in OpenPCDet format [x,y,z,h,w,l,heding]
+        box_lidar = np.array([[x, y, z, h, w, l, heading]])
 
         # Convert using OpenPCDet method
         box_camera = self.boxes3d_lidar_to_kitti_camera(box_lidar)
@@ -109,7 +109,7 @@ class LiDARtoCameraConverter:
             'truncated': float(lidar_label['truncated']),
             'occluded': int(lidar_label['occluded']),
             'alpha': lidar_label['alpha'],
-            'bbox_pre_height': lidar_label['bbox_pre_height'],
+            'bbox': lidar_label['bbox'],
             'dimensions': [h, w, l],  # h, w, l
             'location': [x_rect, y_rect, z_rect], # x, y, z
             'rotation_y': rotation_y,
@@ -147,7 +147,7 @@ if __name__ == "__main__":
                     camera_labels.append(camera_label)
 
                     output = f"{camera_label['type']} {camera_label['truncated']} {camera_label['occluded']} " \
-                            f"{camera_label['alpha']} {camera_label['bbox_pre_height']} " \
+                            f"{camera_label['alpha']} {camera_label['bbox']} " \
                             f"{camera_label['dimensions'][0]:.2f} {camera_label['dimensions'][1]:.2f} {camera_label['dimensions'][2]:.2f} " \
                             f"{camera_label['location'][0]:.2f} {camera_label['location'][1]:.2f} {camera_label['location'][2]:.2f} " \
                             f"{camera_label['rotation_y']:.2f} {camera_label['score']}"
@@ -165,8 +165,8 @@ if __name__ == "__main__":
         from progress.bar import IncrementalBar
         import os
 
-        lidar_label_dir = "kitti_gt_annos/gt_bev_to_lidar_labels"
-        output_dir = "kitti_gt_annos/gt_lidar_to_camera_labels"
+        lidar_label_dir = "kitti_gt_annos_2/gt_bev_to_lidar_labels_2"
+        output_dir = "kitti_gt_annos_2/gt_lidar_to_camera_labels_2"
 
         if not os.path.exists(lidar_label_dir):
             print(f"Directoy '{lidar_label_dir}' not found.")
