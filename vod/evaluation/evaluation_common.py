@@ -24,7 +24,7 @@ def get_label_annotation(label_path):
         'truncated': [],
         'occluded': [],
         'alpha': [],
-        'bbox': [],
+        'bbox': [], # x1 y1 x2 y2 format
         'dimensions': [],
         'location': [],
         'rotation_y': []
@@ -41,7 +41,7 @@ def get_label_annotation(label_path):
     annotations['alpha'] = np.array([float(x[3]) for x in content])
     annotations['bbox'] = np.array(
         [[float(info) for info in x[4:8]] for x in content]).reshape(-1, 4)
-    # dimensions will convert hwl format to standard lhw(camera) format.
+    # dimensions will convert hwl (kitti) format to standard lhw (camera) format.
     annotations['dimensions'] = np.array(
         [[float(info) for info in x[8:11]] for x in content]).reshape(
         -1, 3)[:, [2, 0, 1]]
