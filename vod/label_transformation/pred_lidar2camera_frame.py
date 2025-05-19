@@ -195,3 +195,7 @@ if __name__ == "__main__":
             bar.next()
             
     bar.finish()
+
+    # Future work:
+    # With this function you can create the 2D-BBox of a 3D Bounding Box in Camera frame.
+    # https://github.com/AlejandroBarrera/birdnet2/blob/5ceed811b289796d7d7420a064ecb079c80801ab/tools/utils_3d.py#L29

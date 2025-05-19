@@ -126,7 +126,9 @@ if __name__ == "__main__":
 
         bar.finish()
 
-
+# Future work:
 # Reverse engineering the height information
 # height = (pixel_value * (Z_MAX_HEIGHT - Z_MIN_HEIGHT) / 255.0) + Z_MIN_HEIGHT - OFFSET_LIDAR
 # height = (pixel_value * (1.27 - (-2.73)) / 255.0) + (-2.73) + 2.73
+
+# https://github.com/AlejandroBarrera/birdnet2/blob/5ceed811b289796d7d7420a064ecb079c80801ab/tools/birdview_detection_refiner.py#L293
