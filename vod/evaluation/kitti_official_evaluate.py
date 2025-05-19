@@ -637,14 +637,14 @@ def eval_class(gt_annotations,
     }
     return ret_dict
 
-
+# Old KITTI standard
 def get_m_ap(prec):
     sums = 0
     for i in range(0, prec.shape[-1], 4): # step size 4
         sums = sums + prec[..., i]
     return sums / 11 * 100 # 11 recall points
 
-
+# New KITTI standard (recommended)
 def get_m_ap_r40(prec):
     sums = 0
 
@@ -717,17 +717,20 @@ def get_official_eval_result(gt_annotations, dt_annotations, current_classes, pr
     elif custom_method == 3:
         print("Evaluating kitti by ROI (Drive Corridor)")
 
-    # Original OpenPCDet code
+    # Original OpenPCDet code, designed for 6 classes
     # overlap_mod
     overlap_0_7 = np.array([[0.7, 0.5, 0.5, 0.7, 0.5, 0.7], # image
                             [0.7, 0.5, 0.5, 0.7, 0.5, 0.7], # bev
                             [0.7, 0.5, 0.5, 0.7, 0.5, 0.7]]) # 3d
-    # Easy overlap_easy
+    # overlap_easy
     overlap_0_5 = np.array([[0.7, 0.50, 0.50, 0.7, 0.50, 0.5],  # image
                             [0.5, 0.25, 0.25, 0.5, 0.25, 0.5],  # bev
                             [0.5, 0.25, 0.25, 0.5, 0.25, 0.5]])  # 3d
     # class:  0,    1,    2,   3,   4,    5
-    min_overlaps = np.stack([overlap_0_7, overlap_0_5], axis=0)  # [2, 3, 6] = [num_overlaps, metrics, classes]
+
+    # [2, 3, 6] = [num_overlaps (0.7&0.5), metrics (bbox, 3d, bev), classes]
+    min_overlaps = np.stack([overlap_0_7, overlap_0_5], axis=0)  
+    
     # Default
     # class_to_name = {
     #     0: 'Car',
@@ -744,6 +747,7 @@ def get_official_eval_result(gt_annotations, dt_annotations, current_classes, pr
     #     11: 'truck',
     #     12: 'vehicle_other'
     # }
+
     # Custom
     class_to_name = {
         0: 'Car',
@@ -768,7 +772,7 @@ def get_official_eval_result(gt_annotations, dt_annotations, current_classes, pr
         result_name = 'kitti_roi'
 
     # check whether alpha is valid
-    compute_aos = True
+    compute_aos = False
     for anno in dt_annotations:
         if anno['alpha'].shape[0] != 0:
             if anno['alpha'][0] != -10:
@@ -785,21 +789,56 @@ def get_official_eval_result(gt_annotations, dt_annotations, current_classes, pr
         # mAP result: [num_class, num_diff, num_min_overlap]
         # evaluates only overlap_0_5
         #for i in range(1, 2):  # min_overlaps.shape[0]):
-        # evaluates over overlap_0_5 and overlap_0_7
+        # evaluates over overlap_0_5 AND overlap_0_7
         for i in range(min_overlaps.shape[0]):
             if compute_aos:
                 if i == 1:
-                    ret_dict['%s_aos_all' % class_to_name[curcls]] = mAPaos[j, 0, 1]
+                    """
+                    KITTI: "On 08.10.2019, we have followed the suggestions of the Mapillary team in their paper 
+                    Disentangling Monocular 3D Object Detection and use 40 recall positions instead of 
+                    the 11 recall positions proposed in the original Pascal VOC benchmark."
+                    """
+                    #ret_dict['%s_aos_all' % class_to_name[curcls]] = mAPaos[j, 0, 1]
+                    ret_dict['%s_aos_all' % class_to_name[curcls]] = mAPaos_R40[j, 0, 1] # 0 = Easy, 1 = 0.5 
 
             if i == 1:
-                ret_dict['%s_3d_all' % class_to_name[curcls]] = mAP3d[
-                    j, 0, 1]  # get j class, difficulty, second min_overlap
-                ret_dict['%s_bev_all' % class_to_name[curcls]] = mAPbev[
-                    j, 0, 1]  # get j class, difficulty, second min_overlap
+                # 0.7
+                ret_dict['%s_bbox_easy_07' % class_to_name[curcls]] = mAPbbox_R40[j, 0, 0] # 0 = Easy, 1 = 0.7
+                ret_dict['%s_bbox_mod_07' % class_to_name[curcls]] = mAPbbox_R40[j, 1, 0] # 1 = Mod., 0 = 0.7
+                ret_dict['%s_bbox_hard_07' % class_to_name[curcls]] = mAPbbox_R40[j, 2, 0] # 2 = Hard, 0 = 0.7
+                # 0.5
+                ret_dict['%s_bbox_easy_05' % class_to_name[curcls]] = mAPbbox_R40[j, 0, 1] # 0 = Easy, 1 = 0.5
+                ret_dict['%s_bbox_mod_05' % class_to_name[curcls]] = mAPbbox_R40[j, 1, 1] # 1 = Mod., 0 = 0.5
+                ret_dict['%s_bbox_hard_05' % class_to_name[curcls]] = mAPbbox_R40[j, 2, 1] # 2 = Hard, 0 = 0.5
 
+                #ret_dict['%s_3d_all' % class_to_name[curcls]] = mAP3d[
+                #    j, 0, 1]  # get j class, difficulty, second min_overlap
+                # 0.7
+                ret_dict['%s_3d_easy_07' % class_to_name[curcls]] = mAP3d_R40[j, 0, 0] # 0 = Easy, 1 = 0.7
+                ret_dict['%s_3d_mod_07' % class_to_name[curcls]] = mAP3d_R40[j, 1, 0] # 1 = Mod., 1 = 0.7
+                ret_dict['%s_3d_hard_07' % class_to_name[curcls]] = mAP3d_R40[j, 2, 0] # 2 = Hard, 1 = 0.7
+                # 0.5
+                ret_dict['%s_3d_easy_05' % class_to_name[curcls]] = mAP3d_R40[j, 0, 1] # 0 = Easy, 1 = 0.5
+                ret_dict['%s_3d_mod_05' % class_to_name[curcls]] = mAP3d_R40[j, 1, 1] # 1 = Mod., 1 = 0.5
+                ret_dict['%s_3d_hard_05' % class_to_name[curcls]] = mAP3d_R40[j, 2, 1] # 2 = Hard, 1 = 0.5
+                
+                #ret_dict['%s_bev_all' % class_to_name[curcls]] = mAPbev[
+                #    j, 0, 1]  # get j class, difficulty, second min_overlap
+                # 0.7
+                ret_dict['%s_bev_easy_07' % class_to_name[curcls]] = mAPbev_R40[j, 0, 0] # 0 = Easy, 1 = 0.7
+                ret_dict['%s_bev_mod_07' % class_to_name[curcls]] = mAPbev_R40[j, 1, 0] # 1 = Mod., 1 = 0.7
+                ret_dict['%s_bev_hard_07' % class_to_name[curcls]] = mAPbev_R40[j, 2, 0] # 2 = Hard, 1 = 0.7
+                # 0.5
+                ret_dict['%s_bev_easy_05' % class_to_name[curcls]] = mAPbev_R40[j, 0, 1] # 0 = Easy, 1 = 0.5
+                ret_dict['%s_bev_mod_05' % class_to_name[curcls]] = mAPbev_R40[j, 1, 1] # 1 = Mod., 1 = 0.5
+                ret_dict['%s_bev_hard_05' % class_to_name[curcls]] = mAPbev_R40[j, 2, 1] # 2 = Hard, 1 = 0.5
+            
+    
     if custom_method == 0:
         return {'entire_area': ret_dict}
     elif custom_method == 3:
         return {'roi': ret_dict}
     else:
         raise NotImplementedError
+    
+        
