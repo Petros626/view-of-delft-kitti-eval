@@ -2,7 +2,7 @@ import numpy as np
 import pickle
 from pathlib import Path
 import copy
-from vod.label_transformation.utils.utils import save_transf_camera_labels, cart_to_hom, normalize_angle_pred
+from vod.label_transformation.utils.utils import save_transf_camera_labels, cart_to_hom
 
 class PredLiDARtoCameraConverter:
     def __init__(self):
@@ -86,13 +86,12 @@ class PredLiDARtoCameraConverter:
             'truncated': float(parts[1]),
             'occluded': int(parts[2]),
             'alpha': float(parts[3]),  # Convert to float
-            'bbox_pre_height': float(parts[4]),  # Convert to float
-            'dimensions': [float(parts[5]), float(parts[6]), float(parts[7])],  # h, w, l
-            'location': [float(parts[8]), float(parts[9]), float(parts[10])],   # x, y, z
-            'rotation_z': float(parts[11]),  # Convert to float
-            'score': float(parts[12])
+            'bbox': [float(parts[4]), float(parts[5]), float(parts[6]), float(parts[7])],  # xmin, ymin, xmax, ymax
+            'dimensions': [float(parts[8]), float(parts[9]), float(parts[10])],  # h, w, l
+            'location': [float(parts[11]), float(parts[12]), float(parts[13])],   # x, y, z
+            'rotation_z': float(parts[14]),  # Convert to float
+            'score': float(parts[15])
         }
-
 
     def convert_label(self, lidar_label):
         """Convert LiDAR label to camera frame using OpenPCDet method"""
@@ -114,7 +113,7 @@ class PredLiDARtoCameraConverter:
             'truncated': float(lidar_label['truncated']),
             'occluded': int(lidar_label['occluded']),
             'alpha': lidar_label['alpha'],
-            'bbox_pre_height': lidar_label['bbox_pre_height'],
+            'bbox': lidar_label['bbox'],
             'dimensions': [h, w, l],  # h, w, l 
             'location': [x_rect, y_rect, z_rect], # x, y, z
             'rotation_y': (rotation_y),
@@ -168,7 +167,15 @@ if __name__ == "__main__":
         import glob
         from progress.bar import IncrementalBar
 
+        # Model: FP32, Yaw range: [-pi/4...3pi/4]
         lidar_label_dir = "predictions/pred_bev_to_lidar_fp32"
+
+        # Model: FP16, Yaw range: [-pi/4...3pi/4]
+        #lidar_label_dir = ""
+
+        # Model: INT8, Yaw range: [-pi/4...3pi/4]
+        #lidar_label_dir = ""
+
         output_dir = "predictions/pred_lidar_to_camera_fp32"
 
         if not os.path.exists(lidar_label_dir):

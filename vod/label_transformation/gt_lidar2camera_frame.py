@@ -69,7 +69,7 @@ class LiDARtoCameraConverter:
 
         xyz_lidar[:, 2] -= h.reshape(-1) / 2
         xyz_cam = self.lidar_to_rect(xyz_lidar)
-        r_y = -heading - np.pi / 2 # # Adjust rotation (LiDAR-CW → Camera-CCW + axis correction)
+        r_y = -heading - np.pi / 2 # Adjust rotation (LiDAR-CW → Camera-CCW + axis correction)
 
         return np.concatenate([xyz_cam, h, w, l, r_y], axis=-1)
 
@@ -90,15 +90,15 @@ class LiDARtoCameraConverter:
         }
 
 
-    def convert_label(self, lidar_label):
+    def lidar_to_camera_label(self, lidar_label):
         """Convert LiDAR label to camera frame using OpenPCDet method"""
         # Extract box parameters
         x, y, z = lidar_label['location']
         h, w, l = lidar_label['dimensions']
-        heading = lidar_label['rotation_z']
+        heading_lidar = lidar_label['rotation_z']
  
         # Create box array in OpenPCDet format [x,y,z,h,w,l,heding]
-        box_lidar = np.array([[x, y, z, h, w, l, heading]])
+        box_lidar = np.array([[x, y, z, h, w, l, heading_lidar]])
 
         # Convert using OpenPCDet method
         box_camera = self.boxes3d_lidar_to_kitti_camera(box_lidar)
@@ -184,7 +184,7 @@ if __name__ == "__main__":
             with open(lidar_label_file, 'r') as f:
                 for line in f:
                     lidar_label = converter.parse_lidar_label(line)
-                    camera_label = converter.convert_label(lidar_label)
+                    camera_label = converter.lidar_to_camera_label(lidar_label)
                     camera_labels.append(camera_label)
 
                 save_transf_camera_labels(output_dir, lidar_idx, camera_labels)

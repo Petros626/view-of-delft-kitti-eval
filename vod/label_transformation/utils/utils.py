@@ -210,7 +210,6 @@ def save_transf_lidar_labels(output_dir, lidar_idx, lidar_labels):
                    f"{label['dimensions'][0]} {label['dimensions'][1]} {label['dimensions'][2]} " \
                    f"{label['location'][0]} {label['location'][1]} {label['location'][2]} {label['rotation_z']} {label['score']}\n"
             f.write(line)
-    #print(f"Transformed LiDAR labels saved to {output_file}")
 
 
 def save_transf_camera_labels(output_dir, lidar_idx, camera_labels):
@@ -232,4 +231,3 @@ def save_transf_camera_labels(output_dir, lidar_idx, camera_labels):
                    f"{label['dimensions'][0]:.2f} {label['dimensions'][1]:.2f} {label['dimensions'][2]:.2f} " \
                    f"{label['location'][0]:.2f} {label['location'][1]:.2f} {label['location'][2]:.2f} {label['rotation_y']:.2f} {label['score']}\n"
             f.write(line)
-    #print(f"Transformed Camera labels saved to {output_file}")

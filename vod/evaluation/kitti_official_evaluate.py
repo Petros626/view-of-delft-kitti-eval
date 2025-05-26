@@ -35,7 +35,7 @@ def clean_data(gt_anno, dt_anno, current_class, difficulty, roi_clean=False):  #
     # Custom
     valid_class_names = ['car', 'pedestrian', 'cyclist']
     #min_instance_height = [40] # default only Easy
-    min_instance_height = [40, 25, 25] # custom
+    min_instance_height = [40, 25, 25] # heights related to difficulty
     #max_instance_occlusion = [4] # default
     max_instance_occlusion = [0, 1, 2] # custom
     max_instance_truncation = [0.15, 0.3, 0.5]
@@ -107,13 +107,14 @@ def clean_data(gt_anno, dt_anno, current_class, difficulty, roi_clean=False):  #
             valid_class = 1
         else:
             valid_class = -1
-        # (y2 - y1) + 1 from bbox
-        height = abs(dt_anno["bbox"][i, 3] - dt_anno["bbox"][i, 1])
 
-        if height < min_instance_height[difficulty]:
-            ignored_dt.append(1)
-
-        elif (x < left or x > right or z > max_distance) and roi_clean:
+        # (y2 - y1) + 1 from bbox predictions
+        #height = abs(dt_anno["bbox"][i, 3] - dt_anno["bbox"][i, 1])
+        #if height < min_instance_height[difficulty]:
+        #    ignored_dt.append(1)
+        
+        #elif
+        if (x < left or x > right or z > max_distance) and roi_clean:
             ignored_dt.append(1)
 
         elif valid_class == 1:
@@ -435,15 +436,16 @@ def calculate_iou_partly(gt_annotations, dt_annotations, metric, num_parts=50):
 
         # BEV (2D)
         elif metric == 1:
-            # x, y, z
+            # extract only x, z
             loc = np.concatenate(
                 [a["location"][:, [0, 2]] for a in gt_annotations_part], 0)
-            # l, h, w
+            # extract only l, w
             dims = np.concatenate(
                 [a["dimensions"][:, [0, 2]] for a in gt_annotations_part], 0)
             rots = np.concatenate([(a["rotation_y"]) for a in gt_annotations_part], 0)
             gt_boxes = np.concatenate(
                 [loc, dims, rots[..., np.newaxis]], axis=1)
+            
             loc = np.concatenate(
                 [a["location"][:, [0, 2]] for a in dt_annotations_part], 0)
             dims = np.concatenate(
@@ -451,6 +453,8 @@ def calculate_iou_partly(gt_annotations, dt_annotations, metric, num_parts=50):
             rots = np.concatenate([a["rotation_y"] for a in dt_annotations_part], 0)
             dt_boxes = np.concatenate(
                 [loc, dims, rots[..., np.newaxis]], axis=1)
+            
+            # x, z, l(dx), w(dz), r (already transformed LiDAR -> Camera frame) 
             overlap_part = bev_box_overlap(gt_boxes, dt_boxes).astype(
                 np.float64)
             
@@ -772,7 +776,7 @@ def get_official_eval_result(gt_annotations, dt_annotations, current_classes, pr
         result_name = 'kitti_roi'
 
     # check whether alpha is valid
-    compute_aos = False
+    compute_aos = True
     for anno in dt_annotations:
         if anno['alpha'].shape[0] != 0:
             if anno['alpha'][0] != -10:
@@ -803,20 +807,20 @@ def get_official_eval_result(gt_annotations, dt_annotations, current_classes, pr
 
             if i == 1:
                 # 0.7
-                ret_dict['%s_bbox_easy_07' % class_to_name[curcls]] = mAPbbox_R40[j, 0, 0] # 0 = Easy, 1 = 0.7
+                ret_dict['%s_bbox_easy_07' % class_to_name[curcls]] = mAPbbox_R40[j, 0, 0] # 0 = Easy, 0 = 0.7
                 ret_dict['%s_bbox_mod_07' % class_to_name[curcls]] = mAPbbox_R40[j, 1, 0] # 1 = Mod., 0 = 0.7
                 ret_dict['%s_bbox_hard_07' % class_to_name[curcls]] = mAPbbox_R40[j, 2, 0] # 2 = Hard, 0 = 0.7
                 # 0.5
                 ret_dict['%s_bbox_easy_05' % class_to_name[curcls]] = mAPbbox_R40[j, 0, 1] # 0 = Easy, 1 = 0.5
-                ret_dict['%s_bbox_mod_05' % class_to_name[curcls]] = mAPbbox_R40[j, 1, 1] # 1 = Mod., 0 = 0.5
-                ret_dict['%s_bbox_hard_05' % class_to_name[curcls]] = mAPbbox_R40[j, 2, 1] # 2 = Hard, 0 = 0.5
+                ret_dict['%s_bbox_mod_05' % class_to_name[curcls]] = mAPbbox_R40[j, 1, 1] # 1 = Mod., 1 = 0.5
+                ret_dict['%s_bbox_hard_05' % class_to_name[curcls]] = mAPbbox_R40[j, 2, 1] # 2 = Hard, 1 = 0.5
 
                 #ret_dict['%s_3d_all' % class_to_name[curcls]] = mAP3d[
                 #    j, 0, 1]  # get j class, difficulty, second min_overlap
                 # 0.7
-                ret_dict['%s_3d_easy_07' % class_to_name[curcls]] = mAP3d_R40[j, 0, 0] # 0 = Easy, 1 = 0.7
-                ret_dict['%s_3d_mod_07' % class_to_name[curcls]] = mAP3d_R40[j, 1, 0] # 1 = Mod., 1 = 0.7
-                ret_dict['%s_3d_hard_07' % class_to_name[curcls]] = mAP3d_R40[j, 2, 0] # 2 = Hard, 1 = 0.7
+                ret_dict['%s_3d_easy_07' % class_to_name[curcls]] = mAP3d_R40[j, 0, 0] # 0 = Easy, 0 = 0.7
+                ret_dict['%s_3d_mod_07' % class_to_name[curcls]] = mAP3d_R40[j, 1, 0] # 1 = Mod., 0 = 0.7
+                ret_dict['%s_3d_hard_07' % class_to_name[curcls]] = mAP3d_R40[j, 2, 0] # 2 = Hard, 0 = 0.7
                 # 0.5
                 ret_dict['%s_3d_easy_05' % class_to_name[curcls]] = mAP3d_R40[j, 0, 1] # 0 = Easy, 1 = 0.5
                 ret_dict['%s_3d_mod_05' % class_to_name[curcls]] = mAP3d_R40[j, 1, 1] # 1 = Mod., 1 = 0.5
@@ -825,9 +829,9 @@ def get_official_eval_result(gt_annotations, dt_annotations, current_classes, pr
                 #ret_dict['%s_bev_all' % class_to_name[curcls]] = mAPbev[
                 #    j, 0, 1]  # get j class, difficulty, second min_overlap
                 # 0.7
-                ret_dict['%s_bev_easy_07' % class_to_name[curcls]] = mAPbev_R40[j, 0, 0] # 0 = Easy, 1 = 0.7
-                ret_dict['%s_bev_mod_07' % class_to_name[curcls]] = mAPbev_R40[j, 1, 0] # 1 = Mod., 1 = 0.7
-                ret_dict['%s_bev_hard_07' % class_to_name[curcls]] = mAPbev_R40[j, 2, 0] # 2 = Hard, 1 = 0.7
+                ret_dict['%s_bev_easy_07' % class_to_name[curcls]] = mAPbev_R40[j, 0, 0] # 0 = Easy, 0 = 0.7
+                ret_dict['%s_bev_mod_07' % class_to_name[curcls]] = mAPbev_R40[j, 1, 0] # 1 = Mod., 0 = 0.7
+                ret_dict['%s_bev_hard_07' % class_to_name[curcls]] = mAPbev_R40[j, 2, 0] # 2 = Hard, 0 = 0.7
                 # 0.5
                 ret_dict['%s_bev_easy_05' % class_to_name[curcls]] = mAPbev_R40[j, 0, 1] # 0 = Easy, 1 = 0.5
                 ret_dict['%s_bev_mod_05' % class_to_name[curcls]] = mAPbev_R40[j, 1, 1] # 1 = Mod., 1 = 0.5

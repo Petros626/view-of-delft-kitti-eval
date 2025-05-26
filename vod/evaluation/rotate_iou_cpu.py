@@ -178,7 +178,7 @@ def point_in_quadrilateral(pt_x, pt_y, corners):
     # introducing a small epsilon to deal with numerical errors
     # Adding eps to avoid numerical errors. Note - this only matters when testing with GT.
     # https://github.com/traveller59/kitti-object-eval-python/issues/21#issuecomment-2016553667
-    eps = 0.0001 # if you test gt vs. pred use this, if gt vs. gt => 0.0001
+    eps = 0.0 # if you test gt vs. pred use this, if gt vs. gt => 0.0001
     return abab >= abap-eps and abap >= 0-eps and adad >= adap-eps and adap >= 0-eps
 
 
