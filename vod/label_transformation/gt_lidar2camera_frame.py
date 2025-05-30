@@ -98,11 +98,11 @@ class LiDARtoCameraConverter:
         heading_lidar = lidar_label['rotation_z']
  
         # Create box array in OpenPCDet format [x,y,z,h,w,l,heding]
-        box_lidar = np.array([[x, y, z, h, w, l, heading_lidar]])
+        box3d_lidar = np.array([[x, y, z, h, w, l, heading_lidar]])
 
         # Convert using OpenPCDet method
-        box_camera = self.boxes3d_lidar_to_kitti_camera(box_lidar)
-        x_rect, y_rect, z_rect, h, w, l, rotation_y = box_camera[0]
+        box3d_camera = self.boxes3d_lidar_to_kitti_camera(box3d_lidar)
+        x_rect, y_rect, z_rect, h, w, l, rotation_y = box3d_camera[0]
 
         return {
             'type': lidar_label['type'],
@@ -143,7 +143,7 @@ if __name__ == "__main__":
                 for line in f:
                     print("Input (LiDAR):", line.strip())
                     lidar_label = converter.parse_lidar_label(line)
-                    camera_label = converter.convert_label(lidar_label)
+                    camera_label = converter.lidar_to_camera_label(lidar_label)
                     camera_labels.append(camera_label)
 
                     output = f"{camera_label['type']} {camera_label['truncated']} {camera_label['occluded']} " \
@@ -192,3 +192,6 @@ if __name__ == "__main__":
             bar.next()
             
 bar.finish()
+
+
+# TODO: think if calculating 2D Boxes is better, than taking from gt
