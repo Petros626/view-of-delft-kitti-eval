@@ -21,7 +21,7 @@ class BEVtoLiDARConverter:
         """
         class_id = int(bev_label[0])
         x1, y1, x2, y2, x3, y3, x4, y4 = bev_label[1:9]
-        bbox = bev_label[9:13]
+        #bbox = bev_label[9:13] # use original values
         truncation = bev_label[13]
         occlusion = bev_label[14]
 
@@ -64,21 +64,20 @@ class BEVtoLiDARConverter:
         #print(f"(Calc.) x,y: {center[0], center[1]}")
         #print(f"(Calc.) rot_z: {heading_lidar}")
         
-        # Apply class-specific offsets
-        # TODO: test if offset is really needed or hurts IoU during evaluation
-        if class_id == 1:  # Car
-            length = max(0, length - 0.4)
-            width = max(0, width - 0.4)
-        elif class_id in [2, 3]:  # Pedestrian/Cyclist
-            length = max(0, length - 0.3)
-            width = max(0, width - 0.3)
+        # Don't subtract the class-specific offsets applied before training, it would distort the metrics
+        #if class_id == 1:  # Car
+        #    length = max(0, length - 0.4)
+        #    width = max(0, width - 0.4)
+        #elif class_id in [2, 3]:  # Pedestrian/Cyclist
+        #    length = max(0, length - 0.3)
+        #    width = max(0, width - 0.3)
         #print(f"(Calc.) w,l: {width, length}")
 
         # Extract alpha, score, height, z from gt_match in .pkl file
-        alpha = gt_match.get('alpha', 0.0) if gt_match else 0.0
+        alpha = gt_match.get('alpha', -10) if gt_match else -10
         score = gt_match.get('score', 0.0) if gt_match else 0.0
-        height = gt_match['3Dbox'][5] if gt_match else 0.0
-        z = gt_match['3Dbox'][2] if gt_match else 0.0
+        height = gt_match['3Dbox'][5] if gt_match else -1
+        z = gt_match['3Dbox'][2] if gt_match else -1000
   
         # Map class_id to type
         class_map = {1: "Car", 2: "Pedestrian", 3: "Cyclist"}
@@ -92,7 +91,8 @@ class BEVtoLiDARConverter:
             "truncated": float(truncation),
             "occluded": int(occlusion),
             "alpha": alpha, # from gt data
-            "bbox": bbox,  # bbox: x1 y1 x2 y2
+            #"bbox": bbox,  # from gt data
+            "bbox": [-1, -1, -1, -1], # dummy values, calc. later
             "dimensions": [height, width, length], #  h, w, l
             "location": [center[0], center[1], z], # x, y, z
             "rotation_z": heading_lidar,
@@ -256,7 +256,7 @@ if __name__ == "__main__":
                 lidar_label = converter.bev_to_lidar_label(bev_label, gt_match, gt_match['3Dbox'][6])
                 lidar_labels.append(lidar_label)
 
-            save_transf_lidar_labels(output_dir, lidar_idx, lidar_labels)
+            #save_transf_lidar_labels(output_dir, lidar_idx, lidar_labels)
 
             bar.next()
 
