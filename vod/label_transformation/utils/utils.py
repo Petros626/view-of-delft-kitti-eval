@@ -1,7 +1,7 @@
 import numpy as np
-from math import pi
 import os
-
+import math
+import copy
 
 def normalize(num, lower=0, upper=360, b=False):
     # source: # https://gist.github.com/phn/1111712/35e8883de01916f64f7f97da9434622000ac0390
@@ -115,20 +115,20 @@ def normalize(num, lower=0, upper=360, b=False):
 
 def normalize_angle(angle, gt_angle=None):
     """Normalize angle to [-pi, pi] range."""
-    angle = (angle + pi) % (2 * pi) - pi
+    angle = (angle + math.pi) % (2 * math.pi) - math.pi
     if gt_angle is not None:
         diff = abs(angle - gt_angle)
-        if diff > pi:
-            angle += -2*pi if angle > 0 else 2*pi
+        if diff > math.pi:
+            angle += -2 * math.pi if angle > 0 else 2 * math.pi
     return angle
 
 
 def normalize_angle_pred(angle):
     """Normalize angle to [0, pi/2] range."""
-    while angle > pi/2:
-        angle -= pi/2
+    while angle > math.pi/2:
+        angle -= math.pi/2
     while angle < 0:
-        angle += pi/2
+        angle += math.pi/2
     return angle
 
 
@@ -231,3 +231,75 @@ def save_transf_camera_labels(output_dir, lidar_idx, camera_labels):
                    f"{label['dimensions'][0]:.2f} {label['dimensions'][1]:.2f} {label['dimensions'][2]:.2f} " \
                    f"{label['location'][0]:.2f} {label['location'][1]:.2f} {label['location'][2]:.2f} {label['rotation_y']:.2f} {label['score']}\n"
             f.write(line)
+
+
+def boxes3d_to_corners3d_kitti_camera(boxes3d, bottom_center=True):
+    """
+    :param boxes3d: (N, 7) [x, y, z, h, w, l, ry] in camera coords, see the definition of ry in KITTI dataset
+    :param bottom_center: whether y is on the bottom center of object
+    :return: corners3d: (N, 8, 3)
+        7 -------- 4
+       /|         /|
+      6 -------- 5 .
+      | |        | |
+      . 3 -------- 0
+      |/         |/
+      2 -------- 1
+    """
+    boxes_num = boxes3d.shape[0]
+    h, w, l = boxes3d[:, 3], boxes3d[:, 4], boxes3d[:, 5]
+    x_corners = np.array([l / 2., l / 2., -l / 2., -l / 2., l / 2., l / 2., -l / 2., -l / 2], dtype=np.float32).T
+    z_corners = np.array([w / 2., -w / 2., -w / 2., w / 2., w / 2., -w / 2., -w / 2., w / 2.], dtype=np.float32).T
+    if bottom_center:
+        y_corners = np.zeros((boxes_num, 8), dtype=np.float32)
+        y_corners[:, 4:8] = -h.reshape(boxes_num, 1).repeat(4, axis=1)  # (N, 8)
+    else:
+        y_corners = np.array([h / 2., h / 2., h / 2., h / 2., -h / 2., -h / 2., -h / 2., -h / 2.], dtype=np.float32).T
+
+    ry = boxes3d[:, 6]
+    zeros, ones = np.zeros(ry.size, dtype=np.float32), np.ones(ry.size, dtype=np.float32)
+    rot_list = np.array([[np.cos(ry), zeros, -np.sin(ry)],
+                         [zeros, ones, zeros],
+                         [np.sin(ry), zeros, np.cos(ry)]])  # (3, 3, N)
+    R_list = np.transpose(rot_list, (2, 0, 1))  # (N, 3, 3)
+
+    temp_corners = np.concatenate((x_corners.reshape(-1, 8, 1), y_corners.reshape(-1, 8, 1),
+                                   z_corners.reshape(-1, 8, 1)), axis=2)  # (N, 8, 3)
+    rotated_corners = np.matmul(temp_corners, R_list)  # (N, 8, 3)
+    x_corners, y_corners, z_corners = rotated_corners[:, :, 0], rotated_corners[:, :, 1], rotated_corners[:, :, 2]
+
+    x_loc, y_loc, z_loc = boxes3d[:, 0], boxes3d[:, 1], boxes3d[:, 2]
+
+    x = x_loc.reshape(-1, 1) + x_corners.reshape(-1, 8)
+    y = y_loc.reshape(-1, 1) + y_corners.reshape(-1, 8)
+    z = z_loc.reshape(-1, 1) + z_corners.reshape(-1, 8)
+
+    corners = np.concatenate((x.reshape(-1, 8, 1), y.reshape(-1, 8, 1), z.reshape(-1, 8, 1)), axis=2)
+
+    return corners.astype(np.float32)
+
+
+def obtain_z_from_bev_pixel_value(pixel_value, OFFSET_LIDAR=2.73, Z_MIN_HEIGHT=-2.73, Z_MAX_HEIGHT=1.27, OUT_MIN=0, OUT_MAX=255):
+    """Converts a pixel value back to z-coordinate in the LiDAR coordinate system.
+    Args:
+        pixel_value (float): Pixel value to convert
+        OFFSET_LIDAR (float): LiDAR offset in meters 
+        Z_MIN_HEIGHT (float): Minimum height value 
+        Z_MAX_HEIGHT (float): Maximum height value 
+        OUT_MIN (float): Minimum output range 
+        OUT_MAX (float): Maximum output range 
+    Returns:
+        float: z-coordinate in meters (LiDAR coordinate system)
+    """
+    # Rückwärts-Skalierung vom Ausgabebereich [OUT_MIN, OUT_MAX] zu [0, 1]
+    normalized_value = (pixel_value - OUT_MIN) / (OUT_MAX - OUT_MIN)
+    
+    # Rückwärts-Normalisierung von [0, 1] zum Höhenbereich mit Offset
+    height_with_offset = normalized_value * (Z_MAX_HEIGHT - Z_MIN_HEIGHT) + Z_MIN_HEIGHT
+    
+    # Entfernung des LiDAR-Offsets -> z-Koordinate im LiDAR-System
+    z_coordinate = height_with_offset - OFFSET_LIDAR
+
+    object_height = z_coordinate + abs(Z_MIN_HEIGHT + OFFSET_LIDAR)
+    
+    return object_height
