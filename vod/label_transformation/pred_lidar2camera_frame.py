@@ -2,7 +2,7 @@ import numpy as np
 import pickle
 from pathlib import Path
 import copy
-from vod.label_transformation.utils.utils import save_transf_camera_labels, cart_to_hom
+from vod.label_transformation.utils.utils import save_transf_camera_labels, cart_to_hom, d3box_lidar_to_2dbox_camera
 
 class PredLiDARtoCameraConverter:
     def __init__(self):
@@ -14,7 +14,7 @@ class PredLiDARtoCameraConverter:
         self.V2C = None
 
    
-    def load_dataset(self, dataset_path):
+    def load_calib_from_pkl(self, dataset_path):
         """Load dataset to get calibration data"""
         with open(dataset_path, 'rb') as f:
             self.dataset = pickle.load(f)
@@ -116,7 +116,7 @@ class PredLiDARtoCameraConverter:
             'bbox': lidar_label['bbox'],
             'dimensions': [h, w, l],  # h, w, l 
             'location': [x_rect, y_rect, z_rect], # x, y, z
-            'rotation_y': (rotation_y),
+            'rotation_y': rotation_y,
             'score': float(lidar_label['score'])
         }
     
@@ -129,7 +129,8 @@ if __name__ == "__main__":
 
     # Load dataset with calibration info
     dataset_path = Path("validation_pickle/kitti_val_dataset.pkl")
-    converter.load_dataset(dataset_path)
+    converter.load_calib_from_pkl(dataset_path)
+
 
     if single_file_mode:
         pred_file = "predictions/pred_bev_to_lidar_fp32/000001.txt"
