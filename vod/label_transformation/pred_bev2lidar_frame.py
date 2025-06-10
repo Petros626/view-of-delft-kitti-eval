@@ -1,4 +1,4 @@
-from math import pi
+import math
 from pathlib import Path
 from vod.label_transformation.utils.utils import normalize_angle_pred, pixel_to_world_coords_pred, save_transf_lidar_labels
 from vod.label_transformation.utils.utils import normalize_angle
@@ -9,7 +9,16 @@ class BEVPredtoLiDARConverter:
         self.cell_size = cell_size
 
     def parse_bev_prediction(self, pred_line):
-        """Parse a line from YOLO BEV prediction file"""
+        """
+        Parse a line from YOLO BEV prediction file
+        
+        Args:
+            pred_line (str): Single line from prediction file containing space-separated values
+                            Format: class_id cx cy width height rotation confidence
+
+        Returns:
+            dict: Parsed prediction data with keys
+        """
         parts = pred_line.strip().split()
 
         # Prediction format (cx, cy), (w, h), angle, conf
@@ -24,69 +33,63 @@ class BEVPredtoLiDARConverter:
         }
 
     def convert_to_lidar_label(self, pred, regularized=False):
-        """Convert YOLO BEV prediction to LiDAR label"""
+        """
+        Convert YOLO BEV prediction to LiDAR label
+        
+        Args:
+            pred (dict): Parsed BEV prediction from parse_bev_prediction()
+            regularized (bool): Whether rotation angles are regularized to [0, π/2] range.
+                           If False, expects raw rotation range [-π/4, 3π/4]. Default is False
+                           
+        Returns:
+            dict: LiDAR label in KITTI format with keys
+        """
         
         # Convert center and dimensions to world coordinates
         center, dimensions = pixel_to_world_coords_pred(
             (pred['x_center'], pred['y_center']),
-            (pred['width'], pred['height']),  # assign width=length, height=width for KITTI
+            (pred['width'], pred['height']),
             self.image_width,
             self.image_height,
             self.cell_size
         )
-
-        #print(f"x,y: {center[0], center[1]}")
-        #print(f"w,l: {dimensions[1], dimensions[0]}")
-
-        # Ensure that rotation is in range. Since the zero angle in the BEV is 
-        # along the image x-axis (right) and in the LiDAR along the x-axis (front), 
-        # you must shift the angle by +90° (i.e. +π/2) to align the reference axes.
-        #r = normalize_angle_pred(pred['rotation']) # depends on how the angle comes, regularized or raw
-        #r = r + pi/2 # do i really need this ???
         
         # Case 1: rotation is regularized CW, prediction angle is [0°...90°]
         if regularized:
-            heading = pred['rotation']
-            normalize_angle_pred(heading)
-            # Approaches test:
-            # pred - pi/2
-            # pred + pi/2
-            #print(f"A rot_z: {heading}")
+            heading = -pred['rotation'] - math.pi/2
+            heading = normalize_angle_pred(heading)
             
         # Case 2: rotation is raw CW, the biggest values were [-28°...122°], so it's from [-pi/4...3pi/4] range
         else:             
-            heading = pred['rotation']
-            # Approaches test:
-            # pred (raw)
-            # -pred (inverted)
-            # -pred - pi
-            # pred - pi (aligned I)
-            # pi - pred (aligned II)
-
-        print(f"B rot_z: {heading}")
+            # BEV-space to LiDAR-space
+            # -: Reflects the x-axis (due to y-axis difference)
+            # -pi/2: Rotates coordinate system by -90°
+            # NOTE: Both spaces are CW, but the axis orientation is different. 
+            # The transformation heading = -pred['rotation'] - math.pi/2 corrects 
+            # both the axis mirroring and the reference rotation.
+            heading = -pred['rotation'] - math.pi/2
         
         # Default height values based on class
-        # source: "BirdNet+: End-to-End 3D Object Detection in LiDAR Bird's Eye View"
+        # NOTE: source: "BirdNet+: End-to-End 3D Object Detection in LiDAR Bird's Eye View"
         default_heights = {1: 1.53, 2: 1.76, 3: 1.74}  # Car: 1.53m, Ped: 1.76m, Cyc: 1.74m
         height = default_heights.get(pred['class_id'])
-        z = height/2 # estimated from 3D box height
+        # 3D Bounding Box Regression not supported by YOLOv8 OBB Head 
+        # Approaches like BirdNet, BirdNet+ etc. can't be applied yet
+        z = -0.5 # approx. value fitting for 3d boxes vs 3d gt
 
         # Map class_id to type
         class_map = {1: "Car", 2: "Pedestrian", 3: "Cyclist"}
         obj_type = class_map.get(pred['class_id'], "DontCare")
-      
-        print(f"class: {obj_type}\n")
-        #print(f"conf: {pred['confidence'] * 100}")
 
         # Create LiDAR label in default KITTI format
         lidar_label = {
             "type": str(obj_type),
-            "truncated": float(-1), # dummy value like BirdNet2
+            "truncated": float(-1), # dummy value like BirdNet2 or OpenPCDet
             "occluded": int(-1), # dummy value
             "alpha": float(-10), # dummy value
             "bbox": [-1, -1, -1, -1], # dummy value, calc. later
             "dimensions": [height, dimensions[1], dimensions[0]],  # h, w, l
-            "location": [center[0], center[1], z], # x, y, z (best pratice approach for z)
+            "location": [center[0], center[1], z], # x, y, z
             "rotation_z": heading, # rad
             "score": float(pred['confidence'])
         }
@@ -98,16 +101,16 @@ if __name__ == "__main__":
     import glob
     from progress.bar import IncrementalBar
 
-    single_file_mode = True
+    single_file_mode = False
     
     if single_file_mode:
-        # Test some files
+       
         # [pi/4...3pi/4]
         pred_file = "predictions/all_bev_preds_minAreaRect()/val_trt_fp32/labels/bev_val_000001.txt"
         # [0...pi/2]
         #pred_file = "predictions/all_bev_preds_regularized/val_trt_fp32_rgd/labels/bev_val_000004.txt"
 
-        output_dir = "predictions/pred_bev_to_lidar_fp32"
+        output_dir = "predictions/all_bev_preds_minAreaRect()/pred_bev_to_lidar_fp32"
 
         if not os.path.exists(pred_file):
             print(f"Prediction file '{pred_file}' not found.")
@@ -124,19 +127,27 @@ if __name__ == "__main__":
                 lidar_labels.append(lidar_label)
 
         lidar_idx = Path(pred_file).stem.split('_')[-1]
-        #save_transf_lidar_labels(output_dir, lidar_idx, lidar_labels)
+        
+        save_transf_lidar_labels(output_dir, lidar_idx, lidar_labels)
 
     else:
         # Model: FP32, Yaw range: [-pi/4...3pi/4]
         pred_dir = "predictions/all_bev_preds_minAreaRect()/val_trt_fp32/labels"
-
         # Model: FP16, Yaw range: [-pi/4...3pi/4] 
         #pred_dir = "predictions/all_bev_preds_minAreaRect()/val_trt_fp16/labels"
-
         # Model: INT8, Yaw range: [-pi/4...3pi/4]
         #pred_dir = "predictions/all_bev_preds_minAreaRect()/val_trt_int8/labels"
 
-        output_dir = "predictions/pred_bev_to_lidar_fp32"
+        output_dir = "predictions/all_bev_preds_minAreaRect()/pred_bev_to_lidar_fp32"
+
+        # Model: FP32, Yaw range: [0, pi/2]
+        #pred_dir = "predictions/all_bev_preds_regularized/val_trt_fp32_rgd/labels"
+        # Model: FP16, Yaw range: [0, pi/2]
+        #pred_dir = "predictions/all_bev_preds_regularized/val_trt_fp16_rgd/labels"
+        # Model: INT8, Yaw range: [0, pi/2]
+        #pred_dir = "predictions/all_bev_preds_regularized/val_trt_int8_rgd/labels"
+
+        #output_dir = "predictions/all_bev_preds_regularized/pred_bev_to_lidar_fp32_rgd"
 
         if not os.path.exists(pred_dir):
             print(f"Directory '{pred_dir}' not found.")
@@ -157,7 +168,8 @@ if __name__ == "__main__":
                     lidar_labels.append(lidar_label)
 
             lidar_idx = Path(pred_file).stem.split('_')[-1]
-            #save_transf_lidar_labels(output_dir, lidar_idx, lidar_labels)
+
+            save_transf_lidar_labels(output_dir, lidar_idx, lidar_labels)
             
             bar.next()
 
