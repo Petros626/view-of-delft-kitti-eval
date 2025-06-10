@@ -5,20 +5,27 @@ from vod.label_transformation.utils.utils import normalize_angle, bev_to_pixel_c
 from vod.label_transformation.utils.utils import extract_gt_for_lidar_idx, save_transf_lidar_labels
 
 class BEVtoLiDARConverter:
+    
     def __init__(self, image_size=(640, 640), cell_size=0.1):
         self.image_width, self.image_height = image_size
         self.cell_size = cell_size
 
+
     def bev_to_lidar_label(self, bev_label, gt_match=None, gt_rotation=None):
         """
-        Convert a BEV label to a LiDAR label.
+        Convert a BEV label to LiDAR coordinate frame label format.
         
         Args:
-            bev_label: List containing [class_id, x1, y1, x2, y2, x3, y3, x4, y4, bbox, truncation, occlusion]
-            gt_match: ground truth match dictionary (optional)
+            bev_label (list): BEV label data containing [class_id, x1, y1, x2, y2, x3, y3, x4, y4, 
+                        bbox, truncation, occlusion] where coordinates are normalized (0-1)
+            gt_match (dict, optional): Ground truth match dictionary containing 3D information.
+                                  Must have keys: 'alpha', 'score', '3Dbox'. Default is None
+            gt_rotation (float, optional): Ground truth rotation angle for normalization. Default is None
+
         Returns:
-        lidar_label: Dictionary containing the LiDAR label fields    
+            dict: LiDAR label in KITTI format with keys
         """
+
         class_id = int(bev_label[0])
         x1, y1, x2, y2, x3, y3, x4, y4 = bev_label[1:9]
         #bbox = bev_label[9:13] # use original values
@@ -28,11 +35,11 @@ class BEVtoLiDARConverter:
         # Reorder points from YOLO to standard clockwise
         """
         YOLO-Format                     Default
-       x4,y4 --- x1,y1                x2,y2 --- x3,y3
+        x4,y4 --- x1,y1               x2,y2 --- x3,y3
         |           |                  |           |
         |           |       →          |           |
         |           |                  |           |
-       x3,y3 --- x2,y2                x1,y1 --- x4,y4
+        x3,y3 --- x2,y2               x1,y1 --- x4,y4
         """
         x1, x2, x3, x4 = x3, x4, x1, x2
         y1, y2, y3, y4 = y3, y4, y1, y2
@@ -60,11 +67,11 @@ class BEVtoLiDARConverter:
 
         # Calculate the rotation directly from the world coordinates of the bounding box
         heading_lidar = atan2(edge[1], edge[0]) # y, x, directly provides the correct angle in the LiDAR CW system
+        # TODO: test this
         heading_lidar = normalize_angle(heading_lidar, gt_rotation) # [-pi...pi]
-        #print(f"(Calc.) x,y: {center[0], center[1]}")
-        #print(f"(Calc.) rot_z: {heading_lidar}")
         
         # Don't subtract the class-specific offsets applied before training, it would distort the metrics
+        # TODO: test this
         #if class_id == 1:  # Car
         #    length = max(0, length - 0.4)
         #    width = max(0, width - 0.4)
@@ -83,8 +90,6 @@ class BEVtoLiDARConverter:
         class_map = {1: "Car", 2: "Pedestrian", 3: "Cyclist"}
         obj_type = class_map.get(class_id, "DontCare")
 
-        #print(f"(.pkl) h, z: {height, z}")
-
         # Create LiDAR label
         lidar_label = {
             "type": str(obj_type),
@@ -101,16 +106,21 @@ class BEVtoLiDARConverter:
 
         return lidar_label
     
+    
     def match_bev_to_gt(self, bev_label, gt_info):
         """
-        Match a BEV label to the closest ground truth box without creating a full LiDAR label.
+        Match a BEV label to the closest ground truth box using position, dimension, and rotation.
         
         Args:
-            bev_label: List containing BEV label information
-            gt_info: List of ground truth boxes
-            
+            bev_label (list): BEV label data containing [class_id, x1, y1, x2, y2, x3, y3, x4, y4, ...]
+                            where coordinates are normalized (0-1)
+            gt_info (list): List of ground truth box dictionaries, each containing:
+                            - 'name' (str): Object class name
+                            - '3Dbox' (list): 3D box parameters [x, y, z, length, width, height, rotation]
+                       
         Returns:
-            best_match: Closest ground truth box dictionary or None
+            dict or None: Best matching ground truth box dictionary if match found within threshold,
+                        None if no suitable match found (score >= 2.0)
         """
         class_id = int(bev_label[0])
         class_map = {1: 'Car', 2: 'Pedestrian', 3: 'Cyclist'}
@@ -185,25 +195,21 @@ if __name__ == "__main__":
     single_file_mode = False
 
     if single_file_mode:
-        # Path to file with bev labels
+
         bev_label_file = "kitti_gt_annos_2/all_bev_gt_annos_2/bev_val_000076.txt"
 
-        # Check if the file exists
         if not os.path.exists(bev_label_file):
             print(f"BEV label file '{bev_label_file}' not found.")
             exit(1)
 
-        # Load BEV labels from the file
         bev_labels = []
         with open(bev_label_file, "r") as f:
             for line in f:
                 bev_labels.append([float(x) for x in line.strip().split()])
 
-        # Load ground truth data
         with open("validation_pickle/kitti_val_dataset.pkl", "rb") as f:
             gt_data = pickle.load(f)
 
-        # Initialise converter
         converter = BEVtoLiDARConverter()
 
         # Convert BEV labels into LiDAR labels and output them
@@ -219,8 +225,9 @@ if __name__ == "__main__":
                 print(f"  {key}: {value}")
             print("\n")
 
-            #save_transf_lidar_labels("kitti_gt_annos/gt_bev_to_lidar_labels", lidar_idx, [lidar_label])
+            save_transf_lidar_labels("kitti_gt_annos/gt_bev_to_lidar_labels", lidar_idx, [lidar_label])
     else:
+        
         import glob
         from progress.bar import IncrementalBar
     
@@ -256,7 +263,7 @@ if __name__ == "__main__":
                 lidar_label = converter.bev_to_lidar_label(bev_label, gt_match, gt_match['3Dbox'][6])
                 lidar_labels.append(lidar_label)
 
-            #save_transf_lidar_labels(output_dir, lidar_idx, lidar_labels)
+            save_transf_lidar_labels(output_dir, lidar_idx, lidar_labels)
 
             bar.next()
 

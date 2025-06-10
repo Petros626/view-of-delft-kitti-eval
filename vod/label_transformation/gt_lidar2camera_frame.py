@@ -5,8 +5,11 @@ import copy
 from vod.label_transformation.utils.utils import save_transf_camera_labels, cart_to_hom
 
 class LiDARtoCameraConverter:
+
     def __init__(self):
-        """Initialize converter with calibration data from dataset"""
+        """
+        Initialize converter with calibration data from dataset
+        """
         self.dataset = None
         self.calib_data = {}
         self.P2 = None
@@ -15,7 +18,16 @@ class LiDARtoCameraConverter:
 
 
     def load_dataset(self, dataset_path):
-        """Load dataset and extract calibration data"""
+        """
+        Load dataset and extract calibration data from pickle file.
+    
+        Args:
+            dataset_path (str or Path): Path to the pickle file containing dataset with calibration data
+            
+        Returns:
+            None
+        """
+
         with open(dataset_path, 'rb') as f:
             self.dataset = pickle.load(f)
             
@@ -32,7 +44,15 @@ class LiDARtoCameraConverter:
     
 
     def get_calib_for_frame(self, lidar_idx):
-        """Get calibration data for specific frame"""
+        """
+        Get calibration data for specific frame and set internal matrices.
+    
+        Args:
+            lidar_idx (str): LiDAR frame identifier/index
+            
+        Returns:
+            dict: Calibration data dictionary containing P2, R0, and Tr_velo2cam matrices
+        """
         if lidar_idx not in self.calib_data:
             raise ValueError(f"No calibration data found for frame {lidar_idx}")
         
@@ -44,11 +64,13 @@ class LiDARtoCameraConverter:
     
 
     def lidar_to_rect(self, pts_lidar):
-        """Convert points from LiDAR to camera rect coordinates
+        """
+        Convert points from LiDAR to camera rect coordinates.
+
         Args:
-            pts_lidar: (N, 3)
+            pts_lidar: (N, 3) [x, y, z]
         Returns:
-            pts_rect: (N, 3)    
+            pts_rect: (N, 3) [x, y, z]    
         """
         pts_lidar_hom = cart_to_hom(pts_lidar)
         pts_rect = np.dot(pts_lidar_hom, np.dot(self.V2C.T, self.R0.T))
@@ -56,7 +78,9 @@ class LiDARtoCameraConverter:
     
 
     def boxes3d_lidar_to_kitti_camera(self, boxes3d_lidar):
-        """Convert 3D boxes from LiDAR to KITTI camera frame
+        """
+        Convert 3D boxes from LiDAR to KITTI camera frame.
+
         Args:
             boxes3d_lidar: (N, 7) [x, y, z, h, w, l, heading]
         Returns:
@@ -75,7 +99,16 @@ class LiDARtoCameraConverter:
 
 
     def parse_lidar_label(self, label_line):
-        """Parse a line from LiDAR label file"""
+        """
+        Parse a single line from LiDAR label file into structured format.
+    
+        Args:
+            label_line (str): Single line from label file containing space-separated values
+                            Format: type truncated occluded alpha bbox dimensions location rotation_z score
+            
+        Returns:
+            dict: Parsed label data with keys
+        """
         parts = label_line.strip().split()
         return {
             'type': str(parts[0]),
@@ -91,7 +124,15 @@ class LiDARtoCameraConverter:
 
 
     def lidar_to_camera_label(self, lidar_label):
-        """Convert LiDAR label to camera frame using OpenPCDet method"""
+        """
+        Convert LiDAR label to camera frame using OpenPCDet transformation method.
+    
+        Args:
+            lidar_label (dict): Label data in LiDAR frame format from parse_lidar_label()
+            
+        Returns:
+            dict: Label data converted to camera frame format with keys
+        """
         # Extract box parameters
         x, y, z = lidar_label['location']
         h, w, l = lidar_label['dimensions']
@@ -192,6 +233,3 @@ if __name__ == "__main__":
             bar.next()
             
 bar.finish()
-
-
-# TODO: think if calculating 2D Boxes is better, than taking from gt
