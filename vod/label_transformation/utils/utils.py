@@ -157,8 +157,8 @@ def pixel_to_world_coords_pred(center_px, dim_px, image_width, image_height, cel
     y = -(center_px[0] - image_width / 2) * cell_size # image x -> lidar y
     x = (image_height - center_px[1]) * cell_size # image y -> lidar x
     
-    length_meters = dim_px[0] * cell_size  # width in YOLO = length in KITTI
-    width_meters = dim_px[1] * cell_size   # height in YOLO = width in KITTI
+    length_meters = dim_px[0] * cell_size  # width (hori.) in YOLO = length in KITTI
+    width_meters = dim_px[1] * cell_size   # height (vert.) in YOLO = width in KITTI
     
     return (x, y), (length_meters, width_meters)
 
