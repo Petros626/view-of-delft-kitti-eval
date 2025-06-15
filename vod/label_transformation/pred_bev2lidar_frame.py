@@ -1,7 +1,6 @@
 import math
 from pathlib import Path
-from vod.label_transformation.utils.utils import normalize_angle_pred, pixel_to_world_coords_pred, save_transf_lidar_labels
-from vod.label_transformation.utils.utils import normalize_angle
+from vod.label_transformation.utils.utils import normalize_angle_minuspi4_3pi4, pixel_to_world_coords_pred, save_transf_lidar_labels
 
 class BEVPredtoLiDARConverter:
     def __init__(self, image_size=(640, 640), cell_size=0.1):
@@ -57,7 +56,6 @@ class BEVPredtoLiDARConverter:
         # Case 1: rotation is regularized CW, prediction angle is [0°...90°]
         if regularized:
             heading = -pred['rotation'] - math.pi/2
-            heading = normalize_angle_pred(heading)
             
         # Case 2: rotation is raw CW, the biggest values were [-28°...122°], so it's from [-pi/4...3pi/4] range
         else:             
@@ -68,6 +66,7 @@ class BEVPredtoLiDARConverter:
             # The transformation heading = -pred['rotation'] - math.pi/2 corrects 
             # both the axis mirroring and the reference rotation.
             heading = -pred['rotation'] - math.pi/2
+            
         
         # Default height values based on class
         # NOTE: source: "BirdNet+: End-to-End 3D Object Detection in LiDAR Bird's Eye View"
