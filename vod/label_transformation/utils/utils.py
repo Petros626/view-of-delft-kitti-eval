@@ -5,7 +5,8 @@ import copy
 
 def normalize(num, lower=0, upper=360, b=False):
     # source: # https://gist.github.com/phn/1111712/35e8883de01916f64f7f97da9434622000ac0390
-    """Normalize number to range [lower, upper) or [lower, upper].
+    """
+    Normalize number to range [lower, upper) or [lower, upper].
 
     Parameters
     ----------
@@ -113,8 +114,10 @@ def normalize(num, lower=0, upper=360, b=False):
     return res
 
 
-def normalize_angle(angle, gt_angle=None):
-    """Normalize angle to [-pi, pi] range."""
+def normalize_angle_minuspi_pi(angle, gt_angle=None):
+    """
+    Normalize angle to [-pi, pi] range.
+    """
     angle = (angle + math.pi) % (2 * math.pi) - math.pi
     if gt_angle is not None:
         diff = abs(angle - gt_angle)
@@ -123,8 +126,10 @@ def normalize_angle(angle, gt_angle=None):
     return angle
 
 
-def normalize_angle_pred(angle):
-    """Normalize angle to [0, pi/2] range."""
+def normalize_angle_zero_pi2(angle):
+    """
+    Normalize angle to [0, pi/2] range.
+    """
     while angle > math.pi/2:
         angle -= math.pi/2
     while angle < 0:
@@ -132,8 +137,21 @@ def normalize_angle_pred(angle):
     return angle
 
 
+def normalize_angle_minuspi4_3pi4(angle):
+    """
+    Normalize angle to [-pi/4, 3pi/4] range.
+    """
+    while angle > 3*math.pi/4:
+        angle -= math.pi
+    while angle < -math.pi/4:
+        angle += math.pi
+    return angle
+
+
 def bev_to_pixel_coords(norm_coords, image_width, image_height):
-    """Convert normalized BEV coordinates to pixel coordinates."""
+    """
+    Convert normalized BEV coordinates to pixel coordinates.
+    """
     points = []
     for x_norm, y_norm in norm_coords:
         px = x_norm * image_width
@@ -143,7 +161,9 @@ def bev_to_pixel_coords(norm_coords, image_width, image_height):
 
 
 def pixel_to_world_coords(pixel_coords, image_width, image_height, cell_size):
-    """Convert pixel coordinates to world coordinates (source was LiDAR frame)."""
+    """
+    Convert pixel coordinates to world coordinates (source was LiDAR frame).
+    """
     world_points = []
     for px, py in pixel_coords:
         y = -(px - image_width / 2) * cell_size # image x -> lidar y
@@ -153,7 +173,9 @@ def pixel_to_world_coords(pixel_coords, image_width, image_height, cell_size):
 
 
 def pixel_to_world_coords_pred(center_px, dim_px, image_width, image_height, cell_size):
-    """Convert YOLO prediction format from pixel to world coordinates."""
+    """
+    Convert YOLO prediction format from pixel to world coordinates.
+    """
     y = -(center_px[0] - image_width / 2) * cell_size # image x -> lidar y
     x = (image_height - center_px[1]) * cell_size # image y -> lidar x
     
@@ -164,7 +186,9 @@ def pixel_to_world_coords_pred(center_px, dim_px, image_width, image_height, cel
 
 
 def cart_to_hom(pts):
-        """Convert Cartesian to homogeneious coordinates
+        """
+        Convert Cartesian to homogeneious coordinates
+
         Args:
             pts: (N, 3 or 2)
         Returns:
@@ -175,7 +199,9 @@ def cart_to_hom(pts):
 
 
 def extract_gt_for_lidar_idx(gt_data, lidar_idx):
-    """Extract GT boxes with original indices and names etc."""
+    """
+    Extract GT boxes with original indices and names etc.
+    """
     for entry in gt_data:
         if entry['point_cloud']['lidar_idx'] == lidar_idx:
             return [
@@ -280,7 +306,9 @@ def boxes3d_to_corners3d_kitti_camera(boxes3d, bottom_center=True):
 
 
 def obtain_z_from_bev_pixel_value(pixel_value, OFFSET_LIDAR=2.73, Z_MIN_HEIGHT=-2.73, Z_MAX_HEIGHT=1.27, OUT_MIN=0, OUT_MAX=255):
-    """Converts a pixel value back to z-coordinate in the LiDAR coordinate system.
+    """
+    Converts a pixel value back to z-coordinate in the LiDAR coordinate system.
+
     Args:
         pixel_value (float): Pixel value to convert
         OFFSET_LIDAR (float): LiDAR offset in meters 
