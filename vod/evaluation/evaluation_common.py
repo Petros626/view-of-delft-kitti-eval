@@ -59,7 +59,7 @@ def get_label_annotation(label_path):
 def get_label_annotations(label_folder, image_ids=None):
     if image_ids is None:
         filepaths = pathlib.Path(label_folder).glob('*.txt')
-        prog = re.compile(r'^\d{5}.txt$')
+        prog = re.compile(r'^\d{6}.txt$') # kitti format xxxxxx.txt
         filepaths = filter(lambda f: prog.match(f.name), filepaths)
         image_ids = [int(p.stem) for p in filepaths]
         image_ids = sorted(image_ids)
