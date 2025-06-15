@@ -14,18 +14,20 @@ def get_thresholds(scores: np.ndarray, num_gt,
     thresholds = []
 
     for i, score in enumerate(scores):
+ 
         l_recall = (i + 1) / num_gt
         if i < (len(scores) - 1):
             r_recall = (i + 2) / num_gt
         else:
             r_recall = l_recall
+
         if (((r_recall - current_recall) < (current_recall - l_recall))
                 and (i < (len(scores) - 1))):
             continue
-
         thresholds.append(score)
         current_recall += 1 / (num_sample_pts - 1.0)
-    # print(len(thresholds), len(scores), num_gt)
+    #print(len(thresholds), len(scores), num_gt)
+
     return thresholds
 
 
@@ -41,9 +43,9 @@ def clean_data(gt_anno, dt_anno, current_class, difficulty, roi_clean=False):  #
     max_instance_truncation = [0.15, 0.3, 0.5]
 
     # Define Driving Corridor after paper BEVDetNet, if needed (probably not)
-    left = -30 # -4
-    right = 30 # +4
-    max_distance = 60 # 25
+    left = -4 # -4
+    right = 4 # +4
+    max_distance = 25 # 25
 
     dc_bboxes, ignored_gt, ignored_dt = [], [], []
     current_cls_name = valid_class_names[current_class].lower()
@@ -198,7 +200,7 @@ def d3_box_overlap(boxes, q_boxes, criterion=-1):
 
 
 #@numba.jit(nopython=False) # I get an error with this
-@numba.jit(nopython=False, forceobj=True)
+#@numba.jit(nopython=False, forceobj=True) # works only without filtering low score annotations
 def compute_statistics_jit(overlaps,
                            gt_datas,
                            dt_datas,
@@ -216,7 +218,7 @@ def compute_statistics_jit(overlaps,
     dt_alphas = dt_datas[:, 4]
     gt_alphas = gt_datas[:, 4]
     dt_bboxes = dt_datas[:, :4]
-    # gt_bboxes = gt_datas[:, :4]
+    #gt_bboxes = gt_datas[:, :4]
 
     # Will be changed to True when score,overlap cross threshold and when ignore_gt/dt = 0 or 1
     assigned_detection = [False] * det_size
@@ -481,8 +483,8 @@ def calculate_iou_partly(gt_annotations, dt_annotations, metric, num_parts=50):
     overlaps = []
     example_idx = 0
     for j, num_part in enumerate(split_parts):
-        # gt_annotations_part = gt_annotations[example_idx:example_idx + num_part]
-        # dt_annotations_part = dt_annotations[example_idx:example_idx + num_part]
+        gt_annotations_part = gt_annotations[example_idx:example_idx + num_part]
+        dt_annotations_part = dt_annotations[example_idx:example_idx + num_part]
         gt_num_idx, dt_num_idx = 0, 0
         for i in range(num_part):
             gt_box_num = total_gt_num[example_idx + i]
@@ -679,7 +681,7 @@ def do_eval(gt_annotations,
 
     # 2D
     ret = eval_class(gt_annotations, dt_annotations, current_classes, difficulties, 0,
-                     min_overlaps, compute_aos, custom_method=custom_method)
+                    min_overlaps, compute_aos, custom_method=custom_method)
 
     print("mAP Image BBox finished")
     mAP_bbox = get_m_ap(ret["precision"])
@@ -695,6 +697,7 @@ def do_eval(gt_annotations,
 
         if pr_detail_dict is not None:
             pr_detail_dict['aos'] = ret['orientation']
+
     # BEV
     ret = eval_class(gt_annotations, dt_annotations, current_classes, difficulties, 1,
                      min_overlaps, custom_method=custom_method)
@@ -704,15 +707,17 @@ def do_eval(gt_annotations,
 
     if pr_detail_dict is not None:
         pr_detail_dict['bev'] = ret['precision']
+
     # 3D
     ret = eval_class(gt_annotations, dt_annotations, current_classes, difficulties, 2,
-                     min_overlaps, custom_method=custom_method)
+                    min_overlaps, custom_method=custom_method)
     print("mAP 3D BBox finished")
     mAP_3d = get_m_ap(ret["precision"])
     mAP_3d_R40 = get_m_ap_r40(ret["precision"])
     if pr_detail_dict is not None:
         pr_detail_dict['3d'] = ret['precision']
     return mAP_bbox, mAP_bev, mAP_3d, mAP_aos, mAP_bbox_R40, mAP_bev_R40, mAP_3d_R40, mAP_aos_R40
+    
 
 
 def get_official_eval_result(gt_annotations, dt_annotations, current_classes, pr_detail_dict=None, custom_method=0):
@@ -727,7 +732,7 @@ def get_official_eval_result(gt_annotations, dt_annotations, current_classes, pr
                             [0.7, 0.5, 0.5, 0.7, 0.5, 0.7], # bev
                             [0.7, 0.5, 0.5, 0.7, 0.5, 0.7]]) # 3d
     # overlap_easy
-    overlap_0_5 = np.array([[0.7, 0.50, 0.50, 0.7, 0.50, 0.5],  # image
+    overlap_0_5 = np.array([[0.7, 0.5, 0.5, 0.7, 0.5, 0.5],  # image
                             [0.5, 0.25, 0.25, 0.5, 0.25, 0.5],  # bev
                             [0.5, 0.25, 0.25, 0.5, 0.25, 0.5]])  # 3d
     # class:  0,    1,    2,   3,   4,    5
@@ -776,7 +781,7 @@ def get_official_eval_result(gt_annotations, dt_annotations, current_classes, pr
         result_name = 'kitti_roi'
 
     # check whether alpha is valid
-    compute_aos = True
+    compute_aos = False
     for anno in dt_annotations:
         if anno['alpha'].shape[0] != 0:
             if anno['alpha'][0] != -10:
