@@ -140,3 +140,9 @@ bev_val_*.txt
 *.txt
 *.json
 *.pkl
+
+# Images
+[0-9]*.png
+LiDAR*.png
+ScreenCapture*.png
+cam*.png
