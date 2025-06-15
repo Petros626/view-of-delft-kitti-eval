@@ -2,22 +2,22 @@ import numpy as np
 import pickle
 from pathlib import Path
 import copy
-from vod.label_transformation.utils.utils import save_transf_camera_labels, cart_to_hom
+from vod.label_transformation.utils.utils import save_transf_camera_labels, cart_to_hom, boxes3d_to_corners3d_kitti_camera
 
 class LiDARtoCameraConverter:
-
     def __init__(self):
         """
-        Initialize converter with calibration data from dataset
+        Initialize converter with calibration data from dataset.
         """
         self.dataset = None
         self.calib_data = {}
         self.P2 = None
         self.R0 = None
         self.V2C = None
+        self.image_shape = None
 
 
-    def load_dataset(self, dataset_path):
+    def load_calib_from_pkl(self, dataset_path):
         """
         Load dataset and extract calibration data from pickle file.
     
@@ -27,7 +27,6 @@ class LiDARtoCameraConverter:
         Returns:
             None
         """
-
         with open(dataset_path, 'rb') as f:
             self.dataset = pickle.load(f)
             
@@ -36,10 +35,15 @@ class LiDARtoCameraConverter:
             if 'point_cloud' in frame and 'calib' in frame:
                 lidar_idx = frame['point_cloud']['lidar_idx']
                 calib = frame['calib']
+
+                if 'image' in frame:
+                    image_shape = frame['image']['image_shape']
+
                 self.calib_data[lidar_idx] = {
                     'P2': calib['P2'][:3],  # 3 x 4
                     'R0': calib['R0_rect'][:3, :3],  # 3 x 3
                     'Tr_velo2cam': calib['Tr_velo_to_cam'][:3],  # 3 x 4
+                    'image_shape': image_shape # [height, width]    
                 }
     
 
@@ -60,6 +64,7 @@ class LiDARtoCameraConverter:
         self.P2 = calib['P2']
         self.R0 = calib['R0']
         self.V2C = calib['Tr_velo2cam']
+        self.image_shape = calib['image_shape']
         return calib
     
 
@@ -75,6 +80,19 @@ class LiDARtoCameraConverter:
         pts_lidar_hom = cart_to_hom(pts_lidar)
         pts_rect = np.dot(pts_lidar_hom, np.dot(self.V2C.T, self.R0.T))
         return pts_rect
+    
+
+    def rect_to_img(self, pts_rect):
+        """
+        :param pts_rect: (N, 3)
+        :return pts_img: (N, 2)
+        """
+        pts_rect_hom = cart_to_hom(pts_rect)
+        pts_2d_hom = np.dot(pts_rect_hom, self.P2.T)
+        pts_img = (pts_2d_hom[:, 0:2].T / pts_rect_hom[:, 2]).T  # (N, 2)
+        pts_rect_depth = pts_2d_hom[:, 2] - self.P2.T[3, 2]  # depth in rect camera coord
+
+        return pts_img, pts_rect_depth
     
 
     def boxes3d_lidar_to_kitti_camera(self, boxes3d_lidar):
@@ -96,6 +114,29 @@ class LiDARtoCameraConverter:
         r_y = -heading - np.pi / 2 # Adjust rotation (LiDAR-CW → Camera-CCW + axis correction)
 
         return np.concatenate([xyz_cam, h, w, l, r_y], axis=-1)
+    
+
+    def boxes3d_kitti_camera_to_imageboxes(self, boxes3d_camera, image_shape=None):
+        """
+        Args:
+            boxes3d_camera: (N, 7) [x, y, z, h, w, l, ry] in rect camera coords
+        Returns: 
+            boxes_2d_preds: (N, 4) [x1, y1, x2, y2] = [xmin, ymin, xmax, ymax]
+        """
+        corners3d = boxes3d_to_corners3d_kitti_camera(boxes3d_camera)
+        pts_img, _ = self.rect_to_img(corners3d.reshape(-1, 3))
+        corners_in_image = pts_img.reshape(-1, 8, 2)
+
+        min_uv = np.min(corners_in_image, axis=1)  # (N, 2)
+        max_uv = np.max(corners_in_image, axis=1)  # (N, 2)
+        boxes2d_image = np.concatenate([min_uv, max_uv], axis=1)
+        if image_shape is not None:
+            boxes2d_image[:, 0] = np.clip(boxes2d_image[:, 0], a_min=0, a_max=image_shape[1] - 1)
+            boxes2d_image[:, 1] = np.clip(boxes2d_image[:, 1], a_min=0, a_max=image_shape[0] - 1)
+            boxes2d_image[:, 2] = np.clip(boxes2d_image[:, 2], a_min=0, a_max=image_shape[1] - 1)
+            boxes2d_image[:, 3] = np.clip(boxes2d_image[:, 3], a_min=0, a_max=image_shape[0] - 1)
+
+        return boxes2d_image
 
 
     def parse_lidar_label(self, label_line):
@@ -145,12 +186,18 @@ class LiDARtoCameraConverter:
         box3d_camera = self.boxes3d_lidar_to_kitti_camera(box3d_lidar)
         x_rect, y_rect, z_rect, h, w, l, rotation_y = box3d_camera[0]
 
+        box2d_camera = self.boxes3d_kitti_camera_to_imageboxes(box3d_camera, self.image_shape)
+        xmin, ymin, xmax, ymax = box2d_camera[0]
+        #print(f"{lidar_label['type']}")
+        #print(f"Esti.: {xmin, ymin, xmax, ymax}\n")
+
         return {
             'type': lidar_label['type'],
             'truncated': float(lidar_label['truncated']),
             'occluded': int(lidar_label['occluded']),
             'alpha': lidar_label['alpha'],
-            'bbox': lidar_label['bbox'],
+            #'bbox': lidar_label['bbox'], # from gt data
+            'bbox': [xmin, ymin, xmax, ymax], # calculated 2D boxes
             'dimensions': [h, w, l],  # h, w, l
             'location': [x_rect, y_rect, z_rect], # x, y, z
             'rotation_y': rotation_y,
@@ -167,10 +214,10 @@ if __name__ == "__main__":
     
     # Load dataset with calibration info
     dataset_path = Path("validation_pickle/kitti_val_dataset.pkl")
-    converter.load_dataset(dataset_path)
+    converter.load_calib_from_pkl(dataset_path)
 
     if single_file_mode:
-        test_label_path = "gt_bev_to_lidar_labels/007439.txt"
+        test_label_path = "predictions/pred_bev_to_lidar_fp32/000002.txt"
         lidar_idx = Path(test_label_path).stem
         output_dir = "kitti_gt_annos/gt_lidar_to_camera_labels"
 
@@ -182,7 +229,7 @@ if __name__ == "__main__":
             camera_labels = []
             with open(test_label_path, 'r') as f:
                 for line in f:
-                    print("Input (LiDAR):", line.strip())
+                    #print("Input (LiDAR):", line.strip())
                     lidar_label = converter.parse_lidar_label(line)
                     camera_label = converter.lidar_to_camera_label(lidar_label)
                     camera_labels.append(camera_label)
@@ -192,9 +239,9 @@ if __name__ == "__main__":
                             f"{camera_label['dimensions'][0]:.2f} {camera_label['dimensions'][1]:.2f} {camera_label['dimensions'][2]:.2f} " \
                             f"{camera_label['location'][0]:.2f} {camera_label['location'][1]:.2f} {camera_label['location'][2]:.2f} " \
                             f"{camera_label['rotation_y']:.2f} {camera_label['score']}"
-                    print("Output (Camera):", output)
+                    #print("Output (Camera):", output)
 
-                save_transf_camera_labels(output_dir, lidar_idx, camera_labels)
+                #save_transf_camera_labels(output_dir, lidar_idx, camera_labels)
                 
         except FileNotFoundError:
             print(f"Label file not found: {test_label_path}")
@@ -232,4 +279,7 @@ if __name__ == "__main__":
 
             bar.next()
             
-bar.finish()
+        bar.finish()
+
+#current topic: should I recalculate the 2D Boxes or take them from gt, bc the 3d boxes can't be properly regressed
+# from the yolo model output parameters.

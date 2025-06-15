@@ -1,7 +1,7 @@
 import numpy as np 
 import pickle
 from math import atan2, pi, sqrt
-from vod.label_transformation.utils.utils import normalize_angle, bev_to_pixel_coords, pixel_to_world_coords
+from vod.label_transformation.utils.utils import normalize_angle_minuspi_pi, bev_to_pixel_coords, pixel_to_world_coords
 from vod.label_transformation.utils.utils import extract_gt_for_lidar_idx, save_transf_lidar_labels
 
 class BEVtoLiDARConverter:
@@ -67,18 +67,8 @@ class BEVtoLiDARConverter:
 
         # Calculate the rotation directly from the world coordinates of the bounding box
         heading_lidar = atan2(edge[1], edge[0]) # y, x, directly provides the correct angle in the LiDAR CW system
-        # TODO: test this
-        heading_lidar = normalize_angle(heading_lidar, gt_rotation) # [-pi...pi]
-        
-        # Don't subtract the class-specific offsets applied before training, it would distort the metrics
-        # TODO: test this
-        #if class_id == 1:  # Car
-        #    length = max(0, length - 0.4)
-        #    width = max(0, width - 0.4)
-        #elif class_id in [2, 3]:  # Pedestrian/Cyclist
-        #    length = max(0, length - 0.3)
-        #    width = max(0, width - 0.3)
-        #print(f"(Calc.) w,l: {width, length}")
+        # NOTE: The use made no difference in the evaluation results
+        heading_lidar = normalize_angle_minuspi_pi(heading_lidar, gt_rotation) # [-pi...pi]
 
         # Extract alpha, score, height, z from gt_match in .pkl file
         alpha = gt_match.get('alpha', -10) if gt_match else -10
