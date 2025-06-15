@@ -71,10 +71,7 @@ def sort_vertex_in_convex_polygon(int_pts, num_of_inter):
                 int_pts[j * 2 + 1] = ty
 
 
-@numba.jit(
-    '(float32[:], float32[:], int32, int32, float32[:])'
-
-)
+@numba.jit('(float32[:], float32[:], int32, int32, float32[:])')
 def line_segment_intersection(pts1, pts2, i, j, temp_pts):
     A = np.empty((2,), dtype=numba.float32)
     B = np.empty((2,), dtype=numba.float32)
@@ -117,10 +114,7 @@ def line_segment_intersection(pts1, pts2, i, j, temp_pts):
     return False
 
 
-@numba.jit(
-    '(float32[:], float32[:], int32, int32, float32[:])'
-
-)
+@numba.jit('(float32[:], float32[:], int32, int32, float32[:])')
 def line_segment_intersection_v1(pts1, pts2, i, j, temp_pts):
     a = np.empty((2,), dtype=numba.float32)
     b = np.empty((2,), dtype=numba.float32)
