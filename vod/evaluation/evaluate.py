@@ -19,12 +19,14 @@ class Evaluation:
                  result_path,
                  current_class=None,
                  score_thresh=-1,
+                 eval_roi=False
                  ):
         """
         Evaluate the results.
         :param result_path: Detection labels path.
         :param current_class: Class to evaluate.
         :param score_thresh: Score threshold to use.
+        :param eval_roi: Driving Corridor evaluation.
         :return: Results of the evaluation.
         """
         if current_class is None:
@@ -35,16 +37,19 @@ class Evaluation:
         dt_annotations = kitti.get_label_annotations(result_path, val_image_ids)
 
         if score_thresh > 0:
+            print(f"filter annotations with low score < {score_thresh}")
             dt_annotations = kitti.filter_annotations_low_score(dt_annotations, score_thresh)
-            print("filter annotations with low score")
-
+            
         gt_annotations = kitti.get_label_annotations(self.test_annotation_file, val_image_ids)
 
         evaluation_result = {}
-        # kitti
-        evaluation_result.update(get_official_eval_result(gt_annotations, dt_annotations, current_class, custom_method=0))
-        # kitti roi
-        #evaluation_result.update(get_official_eval_result(gt_annotations, dt_annotations, current_class, custom_method=3))
+
+        if not eval_roi:
+            # kitti
+            evaluation_result.update(get_official_eval_result(gt_annotations, dt_annotations, current_class, custom_method=0))
+        else:
+            # kitti roi
+            evaluation_result.update(get_official_eval_result(gt_annotations, dt_annotations, current_class, custom_method=3))
 
         return evaluation_result
 
