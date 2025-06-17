@@ -304,7 +304,7 @@ def boxes3d_to_corners3d_kitti_camera(boxes3d, bottom_center=True):
 
     return corners.astype(np.float32)
 
-
+# not working
 def obtain_z_from_bev_pixel_value(pixel_value, OFFSET_LIDAR=2.73, Z_MIN_HEIGHT=-2.73, Z_MAX_HEIGHT=1.27, OUT_MIN=0, OUT_MAX=255):
     """
     Converts a pixel value back to z-coordinate in the LiDAR coordinate system.
@@ -331,3 +331,31 @@ def obtain_z_from_bev_pixel_value(pixel_value, OFFSET_LIDAR=2.73, Z_MIN_HEIGHT=-
     object_height = z_coordinate + abs(Z_MIN_HEIGHT + OFFSET_LIDAR)
     
     return object_height
+
+# needs bev_ground .txt files to work
+def compute_height_from_rotatedbox(bev_image, bev_ground, bev_width, bev_height, obj_centroid, obj_length, obj_width, obj_yaw, hard_low, soft_low, soft_high, hard_high):
+        import cv2
+
+        # Determine object height from the bv image
+        img_shape = (bev_width, bev_height)
+        matrix = cv2.getRotationMatrix2D(center=obj_centroid, angle=obj_yaw, scale=1) # rotation around the obj centroid
+        r_image = cv2.warpAffine(src=bev_image, M=matrix, dsize=img_shape)
+        r_ground = cv2.warpAffine(src=bev_ground, M=matrix, dsize=img_shape)
+
+        x1,x2 = obj_centroid[0] - obj_length * 0.5, obj_centroid[0] + obj_length * 0.5
+        y1,y2 = obj_centroid[1] - obj_width * 0.5, obj_centroid[1] + obj_width * 0.5
+        roi = r_image[int(y1):int(y2), int(x1):int(x2)] # apply normal roi in a rotated image 
+
+        minVal, maxVal, minLoc, maxLoc = cv2.minMaxLoc(roi[:, :, 0]) #Channel 0 refers to the height
+
+        roi_height = r_ground[int(y1):int(y2), int(x1):int(x2)]
+        minValH, maxValH, minLocH, maxLocH = cv2.minMaxLoc(roi_height)
+        ground_height = minValH 
+
+        # Remove nonsense proposals with no points
+        if maxVal == 0:
+            return -1, -1
+
+        object_height = ((maxVal-ground_height) / 255) * 3.0  # from the ground, decodes the bev_image
+
+        return min(max(object_height, soft_low), soft_high), ground_height
