@@ -273,22 +273,19 @@ if __name__ == "__main__":
         import glob
         from progress.bar import IncrementalBar
 
-        # Model: FP32, Yaw range: [-pi/4...3pi/4]
+        # Model: TRT FP32, Yaw range: [-pi/4...3pi/4]
         pred_dir = "predictions/all_bev_preds_minAreaRect()/pred_bev_to_lidar_fp32"
-        # Model: FP16, Yaw range: [-pi/4...3pi/4]
-        #pred_dir = ""
-        # Model: INT8, Yaw range: [-pi/4...3pi/4]
-        #pred_dir = ""
+        # Model: TRT FP16, Yaw range: [-pi/4...3pi/4]
+        #pred_dir = "predictions/all_bev_preds_minAreaRect()/pred_bev_to_lidar_fp16"
+        # Model: TRT INT8, Yaw range: [-pi/4...3pi/4]
+        #pred_dir = "predictions/all_bev_preds_minAreaRect()/pred_bev_to_lidar_int8"
+        # Model: PT FP32, Yaw range: [-pi/4...3pi/4]
+        #pred_dir = "predictions/all_bev_preds_minAreaRect()/pred_bev_to_lidar_pt_fp32"
 
         output_dir = "predictions/all_bev_preds_minAreaRect()/pred_lidar_to_camera_fp32"
 
-        # Model: FP32, Yaw range: [0, pi/2]
+        # Model: TRT FP32, Yaw range: [0, pi/2]
         #pred_dir = "predictions/all_bev_preds_regularized/pred_bev_to_lidar_fp32_rgd"
-        # Model: FP16, Yaw range: [0, pi/2]
-        #pred_dir = ""
-        # Model: INT8, Yaw range: [0, pi/2]
-        #pred_dir = ""
-
         #output_dir = "predictions/all_bev_preds_regularized/pred_lidar_to_camera_fp32_rgd"
 
         if not os.path.exists(pred_dir):

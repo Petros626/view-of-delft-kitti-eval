@@ -130,22 +130,19 @@ if __name__ == "__main__":
         save_transf_lidar_labels(output_dir, lidar_idx, lidar_labels)
 
     else:
-        # Model: FP32, Yaw range: [-pi/4...3pi/4]
+        # Model: TRT FP32, Yaw range: [-pi/4...3pi/4]
         pred_dir = "predictions/all_bev_preds_minAreaRect()/val_trt_fp32/labels"
-        # Model: FP16, Yaw range: [-pi/4...3pi/4] 
+        # Model: TRT FP16, Yaw range: [-pi/4...3pi/4] 
         #pred_dir = "predictions/all_bev_preds_minAreaRect()/val_trt_fp16/labels"
-        # Model: INT8, Yaw range: [-pi/4...3pi/4]
+        # Model: TRT INT8, Yaw range: [-pi/4...3pi/4]
         #pred_dir = "predictions/all_bev_preds_minAreaRect()/val_trt_int8/labels"
+        # Model: PT FP32, Yaw range: [-pi/4...3pi/4]
+        #pred_dir = "predictions/all_bev_preds_minAreaRect()/val_pt_fp32/labels"
 
         output_dir = "predictions/all_bev_preds_minAreaRect()/pred_bev_to_lidar_fp32"
 
-        # Model: FP32, Yaw range: [0, pi/2]
+        # Model: TRT FP32, Yaw range: [0, pi/2]
         #pred_dir = "predictions/all_bev_preds_regularized/val_trt_fp32_rgd/labels"
-        # Model: FP16, Yaw range: [0, pi/2]
-        #pred_dir = "predictions/all_bev_preds_regularized/val_trt_fp16_rgd/labels"
-        # Model: INT8, Yaw range: [0, pi/2]
-        #pred_dir = "predictions/all_bev_preds_regularized/val_trt_int8_rgd/labels"
-
         #output_dir = "predictions/all_bev_preds_regularized/pred_bev_to_lidar_fp32_rgd"
 
         if not os.path.exists(pred_dir):
