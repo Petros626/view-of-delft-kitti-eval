@@ -91,4 +91,34 @@ Corressponding  camera, radar, LiDAR, and pose messages (i.e. content of a frame
 We also share the metadata of the syncronized messages, i.e. the original timestamp of each syncronized message in the frame.
 
 
+## Scenes
+
+Frames are consequitve withing scenes or clips. The KITTI format does not allow for scene level information, so please find the clips defined below.
+
+Number | Clip | Frames | Index Start Frame | Index End Frame | Split
+-- | -- | -- | -- | -- | --
+1 | delft_1 | 544 | 0 | 543 | Valid
+2 | delft_2 | 768 | 544 | 1311 | Train
+3 | delft_3 | 491 | 1312 | 1802 | Train
+4 | delft_4 | 397 | 1803 | 2199 | Train
+6 | delft_6 | 332 | 2200 | 2531 | Train
+7 | delft_7 | 266 | 2532 | 2797 | Test
+8 | delft_8 | 479 | 2798 | 3276 | Test
+9 | delft_9 | 298 | 3277 | 3574 | Train
+10 | delft_10 | 35 | 3575 | 3609 | Valid
+11 | delft_11 | 438 | 3610 | 4047 | Train
+12 | delft_12 | 338 | 4049 | 4386 | Train
+13 | delft_13 | 265 | 4387 | 4651 | Train
+14 | delft_14 | 434 | 4652 | 5085 | Valid
+16 | delft_16 | 237 | 6334 | 6570 | Test
+18 | delft_18 | 188 | 6571 | 6758 | Test
+19 | delft_19 | 784 | 6759 | 7542 | Train
+20 | delft_20 | 357 | 7543 | 7899 | Test
+21 | delft_21 | 298 | 7900 | 8197 | Test
+22 | delft_22 | 283 | 8198 | 8480 | Valid
+23 | delft_23 | 268 | 8481 | 8748 | Train
+24 | delft_24 | 347 | 8749 | 9095 | Train
+25 | delft_25 | 422 | 9096 | 9517 | Test
+26 | delft_26 | 258 | 9518 | 9775 | Train
+27 | delft_27 | 155 | 9776 | 9930 | Train
 
