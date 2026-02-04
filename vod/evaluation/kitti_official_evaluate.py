@@ -43,9 +43,9 @@ def clean_data(gt_anno, dt_anno, current_class, difficulty, roi_clean=False):  #
     max_instance_truncation = [0.15, 0.3, 0.5]
 
     # Define Driving Corridor after paper BEVDetNet, if needed (probably not)
-    left = -4 # -4
-    right = 4 # +4
-    max_distance = 25 # 25
+    left = -4 # -4 m
+    right = 4 # +4 m
+    max_distance = 25 # 25 m 
 
     dc_bboxes, ignored_gt, ignored_dt = [], [], []
     current_cls_name = valid_class_names[current_class].lower()
@@ -77,7 +77,7 @@ def clean_data(gt_anno, dt_anno, current_class, difficulty, roi_clean=False):  #
                 or (height <= min_instance_height[difficulty])):
             ignore = True
 
-        # ignore gts with centers outside the lane or farther than 25m
+        # ignore gts with centers outside the lane or farther than 25 m
         # this is called "Driving Corridor" in the paper, but addressed a roi (region of interest) here
         # not to be confused with roi proposals of detection model
         if roi_clean:
@@ -133,7 +133,7 @@ def image_box_overlap(boxes, query_boxes, criterion=-1):
     K = query_boxes.shape[0]
     overlaps = np.zeros((N, K), dtype=boxes.dtype)
     for k in range(K):
-        # [0,1,2,3] = [left, top, right, bottom] pixel co-ordinates
+        # [0,1,2,3] = [left, top, right, bottom] pixel coordinates
         qbox_area = ((query_boxes[k, 2] - query_boxes[k, 0]) *
                      (query_boxes[k, 3] - query_boxes[k, 1]))
         for n in range(N):
