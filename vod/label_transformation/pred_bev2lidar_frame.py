@@ -98,7 +98,7 @@ class BEVPredtoLiDARConverter:
 if __name__ == "__main__":
     import os 
     import glob
-    from progress.bar import IncrementalBar
+    from progressbar import progressbar
 
     single_file_mode = False
     
@@ -152,7 +152,7 @@ if __name__ == "__main__":
         converter = BEVPredtoLiDARConverter()
         pred_files = glob.glob(os.path.join(pred_dir, "*.txt"))
 
-        bar = IncrementalBar('Processing', max=len(pred_files), 
+        bar = progressbar('Processing', max=len(pred_files), 
                             suffix='%(percent).1f%% - Estimated time: %(eta)ds')
         
         for pred_file in pred_files:
