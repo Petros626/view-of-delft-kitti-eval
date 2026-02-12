@@ -51,7 +51,7 @@ def draw_scenes(points, gt_boxes=None, ref_boxes=None, ref_labels=None,
 
     if ref_boxes is not None:
         vis = draw_box(vis, ref_boxes, (1, 0, 0), 
-                       ref_labels, ref_scores, use_class_colors=True, is_pred=True, draw_diagonals=False)
+                       ref_labels, ref_scores, use_class_colors=True, is_pred=True)
     
     view_control = vis.get_view_control()
     params = open3d.io.read_pinhole_camera_parameters('ScreenCamera_val.json')
@@ -67,7 +67,7 @@ def draw_scenes(points, gt_boxes=None, ref_boxes=None, ref_labels=None,
 
     vis.destroy_window()
 
-def translate_boxes_to_open3d_instance(gt_boxes, is_pred=False):
+def translate_boxes_to_open3d_instance(gt_boxes, draw_diagonals=False):
     """ Standard Open3D Box
              4-------- 6
            /|         /|
@@ -87,7 +87,7 @@ def translate_boxes_to_open3d_instance(gt_boxes, is_pred=False):
     
     lines = np.asarray(line_set.lines)
 
-    if not is_pred: # diagonal only for gt boxes
+    if draw_diagonals: # diagonal only for gt boxes
         diagonal_lines = np.array([[1, 4], [7, 6]]) # creates diagonal cross in direction of the object
         lines = np.concatenate([lines, diagonal_lines], axis=0)
 
@@ -129,7 +129,7 @@ def draw_box(vis, gt_boxes, color=(0, 1, 0), ref_labels=None,
     
     for i in range(gt_boxes.shape[0]):
         line_set, box3d = translate_boxes_to_open3d_instance(
-            gt_boxes[i], is_pred=is_pred)
+            gt_boxes[i], draw_diagonals=draw_diagonals)
 
         if not use_class_colors:
             if ref_labels is None:
@@ -140,9 +140,14 @@ def draw_box(vis, gt_boxes, color=(0, 1, 0), ref_labels=None,
             if ref_labels is not None:
                 line_set.paint_uniform_color(box_colormap[ref_labels[i]])
 
-        if draw_diagonals and not is_pred:
+        if draw_diagonals:
             colors = np.asarray(line_set.colors)
-            colors[-2:] = [0, 1, 1] # cyan for diagonals
+            if is_pred and ref_labels is not None:
+                diagonal_color = box_colormap[ref_labels[i]]
+            else:
+                diagonal_color = [0, 1, 1]
+            
+            colors[-2:] = diagonal_color # cyan for gt diagonal
             line_set.colors = open3d.utility.Vector3dVector(colors)
 
         vis.add_geometry(line_set)
