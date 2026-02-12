@@ -1,4 +1,4 @@
-name: view-of-delft-env
+name: vod
 channels:
   - conda-forge
   - defaults
